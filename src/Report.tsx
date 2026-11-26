@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { SECTION_LABEL, LETTERS, SEC_TARGET, netOf, accOf, fmtNum, fmtDur, type Question, type SectionKey, type QR } from './gen/engine';
 import { buildInsights, readiness, SECTION_CUTOFF, tipFor } from './analysis';
-import type { HistoryEntry } from './storage';
+import { isRRB, type HistoryEntry } from './storage';
 import type { Paper } from './App';
 import type { ExamOutcome } from './Exam';
-import { Bar, DataTableView, Pre, Sparkline } from './ui';
+import { Bar, DIView, Pre, Sparkline } from './ui';
 
 type SF = 'all' | 'wrong' | 'skipped' | 'correct' | 'marked';
 
@@ -34,20 +34,20 @@ export default function Report(props: {
   const [open, setOpen] = useState<Record<number, boolean>>({});
   const ready = readiness(res.net, res.total);
   const retryQs = res.rows.filter((r) => r.status !== 'correct').map((r) => r.q);
-  const fullPaper = res.total === 100;
+  const fullPaper = res.total === 80 && !paper.drill;
 
   const filtered = res.rows.filter((r) => (secF === 'all' || r.q.section === secF) && (sf === 'all' || (sf === 'marked' ? r.marked : r.status === sf)));
   const counts = { all: res.rows.length, wrong: res.wrong, skipped: res.skipped, correct: res.correct, marked: res.rows.filter((r) => r.marked).length };
-  const trend = history.slice(-12).map((h) => h.net);
+  const trend = history.filter(isRRB).slice(-12).map((h) => h.net);
   const maxTopicTotal = Math.max(...res.topics.map((t) => t.total));
 
   return (
     <div className="app-shell">
       <header className="brand-bar">
         <div className="brand-inner">
-          <div className="logo">BC</div>
+          <div className="logo">RRB</div>
           <div>
-            <div className="brand-title">Score Card &amp; Performance Analysis</div>
+            <div className="brand-title">IBPS RRB Clerk Prelims — Score Card &amp; Performance Analysis</div>
             <div className="brand-sub">{paper.label} · {paper.dateKey} · {candidate}</div>
           </div>
         </div>
@@ -61,7 +61,7 @@ export default function Report(props: {
             </div>
           </div>
           <div className="score-info">
-            <h1>{res.net / res.total >= 0.78 ? 'Excellent attempt!' : res.net / res.total >= 0.6 ? 'Good effort — close to the cut-off zone' : 'Keep going — here is exactly what to fix'}</h1>
+            <h1>{res.net / res.total >= 71 / 80 ? 'Excellent attempt — Safe Zone!' : res.net / res.total >= 64 / 80 ? 'Good effort — you are in the borderline band' : 'Keep going — here is exactly what to fix'}</h1>
             {fullPaper ? <div className={`verdict ${ready.tone}`}>{ready.label}</div> : <div className="verdict warn">Retry drill — not saved to history</div>}
             <div className="metrics">
               <M k="Accuracy" v={`${fmtNum(Math.round(res.accuracy * 10) / 10)}%`} />
@@ -77,19 +77,20 @@ export default function Report(props: {
           </div>
         </section>
 
-        <div className="btn-row center wrap">
+        <div className="btn-row center wrap no-print">
           {retryQs.length > 0 && <button className="btn primary" onClick={() => onDrill(retryQs)}>🔁 Retry Wrong &amp; Skipped Drill ({retryQs.length})</button>}
           {onNextDaily && <button className="btn primary" onClick={onNextDaily}>▶ Take Next Daily Test</button>}
           <button className="btn accent" onClick={onFresh}>⚡ Generate Fresh Test</button>
-          <button className="btn" onClick={onHistory}>📈 View History</button>
+          <button className="btn" onClick={onHistory}>📊 Progress &amp; Analytics</button>
+          <button className="btn" onClick={() => window.print()}>🖨 Print / Save PDF</button>
           <button className="btn ghost" onClick={onHome}>⌂ Dashboard</button>
         </div>
 
         <section className="card">
-          <h2>Section-wise performance &amp; sectional cut-off check</h2>
+          <h2>Section-wise performance &amp; sectional qualifying check</h2>
           <div className="table-scroll">
             <table className="std-table">
-              <thead><tr><th>Section</th><th>Qs</th><th>Attempted</th><th>Correct</th><th>Wrong</th><th>Net</th><th>Accuracy</th><th>Avg time / Q</th><th>Cut-off (approx.)</th></tr></thead>
+              <thead><tr><th>Section</th><th>Qs</th><th>Attempted</th><th>Correct</th><th>Wrong</th><th>Net</th><th>Accuracy</th><th>Avg time / Q</th><th>Qualifying (approx.)</th></tr></thead>
               <tbody>
                 {res.sections.map((s) => {
                   const net = netOf(s); const cut = SECTION_CUTOFF[s.label as SectionKey]; const att = s.correct + s.wrong;
@@ -187,12 +188,12 @@ export default function Report(props: {
         {trend.length > 1 && (
           <section className="card">
             <h2>📈 Score trend (last {trend.length} tests)</h2>
-            <Sparkline values={trend} cutoff={75} />
-            <div className="small muted">Dashed line = 75 marks (typical Clerk Prelims cut-off zone 72–78).</div>
+            <Sparkline values={trend} max={80} cutoff={71} />
+            <div className="small muted">Dashed line = 71/80 (RRB Clerk Safe Zone); 64–70.75 is the borderline band.</div>
           </section>
         )}
 
-        <section className="card">
+        <section className="card no-print">
           <h2>✅ Corrections &amp; solutions</h2>
           <div className="filters">
             <div className="seg">
@@ -201,7 +202,7 @@ export default function Report(props: {
               ))}
             </div>
             <div className="seg">
-              {(['all', 'English', 'Numerical', 'Reasoning'] as const).map((k) => (
+              {(['all', 'Reasoning', 'Numerical'] as const).map((k) => (
                 <button key={k} className={secF === k ? 'on' : ''} onClick={() => setSecF(k)}>{k === 'all' ? 'All sections' : k === 'Numerical' ? 'Quant' : k}</button>
               ))}
             </div>
@@ -211,6 +212,20 @@ export default function Report(props: {
             {filtered.map((r) => <Correction key={r.idx} r={r} open={!!open[r.idx]} toggle={() => setOpen((o) => ({ ...o, [r.idx]: !o[r.idx] }))} />)}
           </div>
         </section>
+        <section className="card print-only">
+          <h2>Corrections — wrong &amp; skipped questions ({retryQs.length})</h2>
+          {res.rows.filter((r) => r.status !== 'correct').map((r) => (
+            <div key={r.idx} className="print-corr">
+              <div><b>Q{r.num}.</b> <span className="small">[{r.q.section === 'Numerical' ? 'Quant' : 'Reasoning'} · {r.q.topic} · {r.status === 'wrong' ? 'Wrong' : 'Skipped'} · {r.time}s]</span></div>
+              <Pre text={r.q.question} />
+              <div className="small">Your answer: <b>{r.yours === null ? '—' : `${LETTERS[r.yours]}. ${r.q.options[r.yours]}`}</b> · Correct: <b>{LETTERS[r.q.correctIndex]}. {r.q.options[r.q.correctIndex]}</b></div>
+              <ol className="small">{r.q.explanation.map((e, i) => <li key={i}>{e}</li>)}</ol>
+              <div className="small"><b>Shortcut:</b> {r.q.shortcut} <b>Trap:</b> {r.q.commonTrap}</div>
+            </div>
+          ))}
+          {retryQs.length === 0 && <p>No wrong or skipped questions — perfect paper!</p>}
+        </section>
+        <div className="print-only small muted">Printed from IBPS RRB Clerk Prelims Mock · {paper.label} · {paper.dateKey} · {candidate}</div>
       </main>
     </div>
   );
@@ -235,7 +250,7 @@ function Correction({ r, open, toggle }: { r: QR; open: boolean; toggle: () => v
         <div className="corr-body">
           {q.passageTitle && <div className="passage-title">{q.passageTitle}</div>}
           {q.passage && <details><summary>Show passage / directions</summary><Pre text={q.passage} /></details>}
-          {q.table && <DataTableView table={q.table} />}
+          {q.table && <DIView table={q.table} />}
           <Pre className="q-text" text={q.question} />
           <div className="opts review">
             {q.options.map((o, k) => (

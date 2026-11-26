@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { generatePaper, hashStr, shiftName, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, fmtNum, type Question, type SectionKey } from './gen/engine';
-import { loadHistory, loadPrefs, savePrefs, nextFreshTestNo, todayKey, clearHistory, type HistoryEntry } from './storage';
+import { generatePaper, hashStr, shiftName, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TIME, fmtNum, type Question, type SectionKey } from './gen/engine';
+import { loadHistory, loadPrefs, savePrefs, nextFreshTestNo, todayKey, clearHistory, dailyStreak, isRRB, type HistoryEntry, type Prefs } from './storage';
+import Progress from './Progress';
 import { Sparkline } from './ui';
 import Exam, { type ExamOutcome } from './Exam';
 import Report from './Report';
@@ -14,7 +15,7 @@ export interface Paper {
   drill?: boolean;
 }
 
-type Phase = 'dashboard' | 'instructions' | 'exam' | 'report' | 'history';
+type Phase = 'dashboard' | 'instructions' | 'exam' | 'report' | 'progress';
 
 const SHIFT_INFO = [
   { icon: '🌅', time: '9:00 AM slot' },
@@ -36,7 +37,7 @@ export default function App() {
   const [agree, setAgree] = useState(false);
   const today = todayKey();
 
-  const updatePrefs = (p: Partial<typeof prefs>) => {
+  const updatePrefs = (p: Partial<Prefs>) => {
     const n = { ...prefs, ...p };
     setPrefs(n);
     savePrefs(n);
@@ -57,10 +58,10 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const todayDone = (n: number) => history.filter((h) => h.dateKey === today && h.testNo === n).slice(-1)[0];
+  const todayDone = (n: number) => history.filter((h) => isRRB(h) && h.dateKey === today && h.testNo === n).slice(-1)[0];
   const nextDaily = [1, 2, 3].find((n) => !todayDone(n));
 
-  if (phase === 'exam' && paper) return <Exam paper={paper} candidate={prefs.name || 'Candidate'} onFinish={onFinish} onQuit={() => setPhase('dashboard')} />;
+  if (phase === 'exam' && paper) return <Exam paper={paper} candidate={prefs.name || 'Candidate'} fontScale={prefs.fontScale || 1} setFontScale={(f) => updatePrefs({ fontScale: f })} onFinish={onFinish} onQuit={() => setPhase('dashboard')} />;
   if (phase === 'report' && outcome && paper)
     return (
       <Report
@@ -72,7 +73,7 @@ export default function App() {
         onDrill={(qs) => start({ ...paper, label: `Retry Drill · ${paper.label}`, mode: 'free', questions: qs, drill: true })}
         onNextDaily={nextDaily ? () => startDaily(nextDaily) : undefined}
         onFresh={startFresh}
-        onHistory={() => { setPhase('history'); window.scrollTo(0, 0); }}
+        onHistory={() => { setPhase('progress'); window.scrollTo(0, 0); }}
       />
     );
 
@@ -81,8 +82,8 @@ export default function App() {
       <TopBrand />
       {phase === 'instructions' && paper ? (
         <Instructions paper={paper} agree={agree} setAgree={setAgree} name={prefs.name} onBack={() => setPhase('dashboard')} onBegin={() => { setPhase('exam'); window.scrollTo(0, 0); }} />
-      ) : phase === 'history' ? (
-        <HistoryView history={history} onBack={() => setPhase('dashboard')} onClear={() => { if (confirm('Delete all saved attempts from this browser?')) { clearHistory(); setHistory([]); } }} />
+      ) : phase === 'progress' ? (
+        <Progress history={history} onBack={() => setPhase('dashboard')} onChanged={() => setHistory(loadHistory())} onClear={() => { if (confirm('Delete all saved attempts from this browser? Export them first if you want a backup.')) { clearHistory(); setHistory([]); } }} />
       ) : (
         <Dashboard
           today={today}
@@ -92,11 +93,11 @@ export default function App() {
           todayDone={todayDone}
           onDaily={startDaily}
           onFresh={startFresh}
-          onHistory={() => setPhase('history')}
+          onHistory={() => { setPhase('progress'); window.scrollTo(0, 0); }}
         />
       )}
       <footer className="foot">
-        Practice platform modelled on the IBPS / SBI Clerk Preliminary CBT pattern (100 Qs · 60 min · sectional timing · ¼ negative marking). Not affiliated with IBPS or SBI. Your attempts are stored only in this browser.
+        Practice platform modelled on the IBPS RRB Office Assistant (Multipurpose) / RRB Clerk Preliminary CBT pattern (80 Qs · 80 marks · 45 min · sectional timing · ¼ negative marking). Not affiliated with IBPS. Your attempts are stored only in this browser.
       </footer>
     </div>
   );
@@ -106,10 +107,10 @@ function TopBrand() {
   return (
     <header className="brand-bar">
       <div className="brand-inner">
-        <div className="logo">BC</div>
+        <div className="logo">RRB</div>
         <div>
-          <div className="brand-title">Bank Clerk Prelims — Online Mock Test</div>
-          <div className="brand-sub">IBPS Clerk · SBI Junior Associate · CBT Practice Portal</div>
+          <div className="brand-title">IBPS RRB Clerk Prelims — Online Mock Test</div>
+          <div className="brand-sub">Office Assistant (Multipurpose) · Reasoning + Quant · CBT Practice Portal</div>
         </div>
       </div>
     </header>
@@ -118,8 +119,8 @@ function TopBrand() {
 
 function Dashboard(props: {
   today: string;
-  prefs: { name: string; mode: 'strict' | 'free' };
-  updatePrefs: (p: Partial<{ name: string; mode: 'strict' | 'free' }>) => void;
+  prefs: Prefs;
+  updatePrefs: (p: Partial<Prefs>) => void;
   history: HistoryEntry[];
   todayDone: (n: number) => HistoryEntry | undefined;
   onDaily: (n: number) => void;
@@ -128,20 +129,21 @@ function Dashboard(props: {
 }) {
   const { today, prefs, updatePrefs, history, todayDone, onDaily, onFresh, onHistory } = props;
   const dateLabel = new Date(today + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const last = history.slice(-10);
-  const best = history.length ? Math.max(...history.map((h) => h.net)) : null;
-  const avg = history.length ? history.reduce((s, h) => s + h.net, 0) / history.length : null;
+  const rrb = history.filter(isRRB);
+  const last = rrb.slice(-10);
+  const best = rrb.length ? Math.max(...rrb.map((h) => h.net)) : null;
+  const avg = rrb.length ? rrb.reduce((s, h) => s + h.net, 0) / rrb.length : null;
+  const streak = dailyStreak(history);
   return (
     <main className="container">
       <section className="hero card">
         <div>
-          <h1>Today's Clerk Prelims Mocks</h1>
-          <p className="muted">{dateLabel} · 3 brand-new full-length papers every day (questions change for every shift and every fresh test)</p>
-          <div className="pattern-row">
-            <div className="pat"><b>English Language</b><span>30 Qs · 20 min</span></div>
-            <div className="pat"><b>Numerical Ability</b><span>35 Qs · 20 min</span></div>
-            <div className="pat"><b>Reasoning Ability</b><span>35 Qs · 20 min</span></div>
-            <div className="pat total"><b>Total</b><span>100 Qs · 100 marks · 60 min</span></div>
+          <h1>Today's RRB Clerk Prelims Mocks</h1>
+          <p className="muted">{dateLabel} · 3 brand-new full-length papers every day — new puzzles (6 engines), new DI type and fresh numbers for every shift and every fresh test</p>
+          <div className="pattern-row three">
+            <div className="pat"><b>Reasoning Ability</b><span>40 Qs · 40 marks · 25 min</span></div>
+            <div className="pat"><b>Numerical Ability</b><span>40 Qs · 40 marks · 20 min</span></div>
+            <div className="pat total"><b>Total</b><span>80 Qs · 80 marks · 45 min</span></div>
           </div>
           <p className="small muted">Marking: +1 for correct, −0.25 for wrong, 0 for unattempted. Each question has 5 options (A–E).</p>
         </div>
@@ -160,8 +162,8 @@ function Dashboard(props: {
           </div>
           <small className="muted">
             {prefs.mode === 'strict'
-              ? 'Sections open one by one with a 20:00 timer each and auto-advance when time runs out — exactly like the real CBT.'
-              : 'One 60:00 timer for the whole paper; switch between sections freely.'}
+              ? 'Reasoning (25:00) then Numerical (20:00), each with its own timer that auto-advances when time runs out — exactly like the real CBT.'
+              : 'One 45:00 timer for the whole paper; switch between sections freely.'}
           </small>
         </div>
       </section>
@@ -197,7 +199,7 @@ function Dashboard(props: {
               <div className="small muted">Unlimited new 100-question papers</div>
             </div>
           </div>
-          <div className="shift-score muted">New numbers, new puzzles, new mix every time</div>
+          <div className="shift-score muted">New puzzles, new DI, new numbers every time</div>
           <button className="btn accent" onClick={onFresh}>Generate New Test</button>
         </div>
       </section>
@@ -205,20 +207,21 @@ function Dashboard(props: {
       <section className="card">
         <div className="row-between">
           <h2>Your progress</h2>
-          {history.length > 0 && <button className="btn ghost" onClick={onHistory}>View full history →</button>}
+          <button className="btn" onClick={onHistory}>📊 Progress &amp; Analytics →</button>
         </div>
-        {history.length === 0 ? (
-          <p className="muted">No attempts yet. Take Morning Shift 1 to get your first scorecard, analysis and improvement plan.</p>
+        {rrb.length === 0 ? (
+          <p className="muted">No RRB Clerk attempts yet. Take Morning Shift 1 to get your first scorecard, analysis and improvement plan.</p>
         ) : (
           <div className="progress-grid">
             <div className="kpis">
-              <div className="kpi"><b>{history.length}</b><span>tests taken</span></div>
-              <div className="kpi"><b>{best !== null ? fmtNum(best) : '–'}</b><span>best score</span></div>
-              <div className="kpi"><b>{avg !== null ? fmtNum(Math.round(avg * 100) / 100) : '–'}</b><span>average score</span></div>
+              <div className="kpi"><b>{rrb.length}</b><span>tests taken</span></div>
+              <div className="kpi"><b>{best !== null ? fmtNum(best) : '–'}</b><span>best /80</span></div>
+              <div className="kpi"><b>{avg !== null ? fmtNum(Math.round(avg * 100) / 100) : '–'}</b><span>average /80</span></div>
+              <div className="kpi"><b>{streak}🔥</b><span>day streak</span></div>
             </div>
             <div>
-              <Sparkline values={last.map((h) => h.net)} cutoff={75} />
-              <div className="small muted">Last {last.length} scores · dashed line = 75 (typical cut-off zone)</div>
+              <Sparkline values={last.map((h) => h.net)} max={80} cutoff={71} />
+              <div className="small muted">Last {last.length} scores (out of 80) · dashed line = 71 (Safe Zone)</div>
             </div>
           </div>
         )}
@@ -233,19 +236,19 @@ function Instructions({ paper, agree, setAgree, name, onBack, onBegin }: { paper
   return (
     <main className="container">
       <section className="card instr">
-        <h2>General Instructions — {paper.label}</h2>
+        <h2>IBPS RRB Clerk Prelims — General Instructions · {paper.label}</h2>
         <p className="muted small">Please read the following instructions carefully. Candidate: <b>{name || 'Candidate'}</b> · Paper date: {paper.dateKey}</p>
         <table className="std-table">
           <thead><tr><th>S.No.</th><th>Name of Test</th><th>No. of Qs</th><th>Max. Marks</th><th>Duration</th></tr></thead>
           <tbody>
             {SECTION_ORDER.map((s: SectionKey, i) => (
-              <tr key={s}><td>{i + 1}</td><td>{SECTION_LABEL[s]}</td><td>{counts[i]}</td><td>{FULL_COUNT[s]}</td><td>{strict ? '20 minutes' : '—'}</td></tr>
+              <tr key={s}><td>{i + 1}</td><td>{SECTION_LABEL[s]}</td><td>{counts[i]}</td><td>{FULL_COUNT[s]}</td><td>{strict ? `${SEC_TIME[s] / 60} minutes` : '—'}</td></tr>
             ))}
-            <tr className="tot"><td></td><td>Total</td><td>100</td><td>100</td><td>60 minutes</td></tr>
+            <tr className="tot"><td></td><td>Total</td><td>80</td><td>80</td><td>45 minutes</td></tr>
           </tbody>
         </table>
         <ol className="instr-list">
-          <li>{strict ? 'Each section has a separate timer of 20 minutes. You cannot move to the next section before its time is over unless you submit the section; you cannot return to a previous section.' : 'Practice mode: a single 60-minute timer runs for the whole paper and you may switch between sections at any time.'}</li>
+          <li>{strict ? 'Reasoning Ability (25 minutes) comes first, followed by Numerical Ability (20 minutes). Each section has its own timer; you cannot move to Numerical Ability before the Reasoning timer ends unless you submit the section, and you cannot return to a submitted section.' : 'Practice mode: a single 45-minute timer runs for the whole paper and you may switch between sections at any time.'}</li>
           <li>The countdown timer at the top right shows the time remaining. It turns <b className="amber">amber</b> below 5 minutes and <b className="red">red</b> below 3 minutes. When the timer reaches zero, the {strict ? 'section is submitted automatically' : 'test is submitted automatically'}.</li>
           <li>There is negative marking: <b>0.25 mark</b> is deducted for every wrong answer. Unattempted questions carry no penalty.</li>
           <li>The Question Palette on the right shows the status of each question:
@@ -259,7 +262,8 @@ function Instructions({ paper, agree, setAgree, name, onBack, onBegin }: { paper
           </li>
           <li>To answer, click an option and then click <b>Save &amp; Next</b>. Selecting an option and moving away without saving does not save your answer.</li>
           <li><b>Mark for Review &amp; Next</b> saves the selected option (if any) and flags the question; <b>Clear Response</b> removes your answer.</li>
-          <li>Use the <b>Question Paper</b> button to see all questions of the current section at a glance.</li>
+          <li>Use the <b>Question Paper</b> button to see all questions of the current section at a glance, and <b>A− / A / A+</b> in the header to change the text size.</li>
+          <li>Keyboard shortcuts: <kbd>1</kbd>–<kbd>5</kbd> or <kbd>A</kbd>–<kbd>E</kbd> select an option, <kbd>Enter</kbd> Save &amp; Next, <kbd>M</kbd> Mark for Review &amp; Next, <kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Delete</kbd> Clear Response, <kbd>←</kbd> / <kbd>→</kbd> Previous / Next.</li>
         </ol>
         <label className="declare">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
@@ -269,51 +273,6 @@ function Instructions({ paper, agree, setAgree, name, onBack, onBegin }: { paper
           <button className="btn ghost" onClick={onBack}>← Previous</button>
           <button className="btn primary" disabled={!agree} onClick={onBegin}>I am ready to begin</button>
         </div>
-      </section>
-    </main>
-  );
-}
-
-function HistoryView({ history, onBack, onClear }: { history: HistoryEntry[]; onBack: () => void; onClear: () => void }) {
-  const rows = history.slice().reverse();
-  return (
-    <main className="container">
-      <section className="card">
-        <div className="row-between">
-          <h2>Attempt history</h2>
-          <div className="btn-row">
-            <button className="btn ghost" onClick={onBack}>← Dashboard</button>
-            {history.length > 0 && <button className="btn danger-ghost" onClick={onClear}>Clear history</button>}
-          </div>
-        </div>
-        {history.length > 1 && <Sparkline values={history.slice(-20).map((h) => h.net)} cutoff={75} />}
-        {rows.length === 0 ? (
-          <p className="muted">No attempts saved yet.</p>
-        ) : (
-          <div className="table-scroll">
-            <table className="std-table">
-              <thead>
-                <tr><th>Date</th><th>Test</th><th>Mode</th><th>Net</th><th>Eng</th><th>Quant</th><th>Reas</th><th>Acc.</th><th>Attempted</th><th>Weak topics</th></tr>
-              </thead>
-              <tbody>
-                {rows.map((h) => (
-                  <tr key={h.id}>
-                    <td>{new Date(h.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td>{h.label}</td>
-                    <td>{h.mode === 'strict' ? 'Strict' : 'Practice'}</td>
-                    <td><b>{fmtNum(h.net)}</b></td>
-                    <td>{fmtNum(h.sections.English?.net ?? 0)}</td>
-                    <td>{fmtNum(h.sections.Numerical?.net ?? 0)}</td>
-                    <td>{fmtNum(h.sections.Reasoning?.net ?? 0)}</td>
-                    <td>{fmtNum(h.accuracy)}%</td>
-                    <td>{h.attempted}</td>
-                    <td className="small">{h.weakTopics.join(', ') || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
     </main>
   );

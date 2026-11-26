@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SECTION_ORDER, SECTION_LABEL, LETTERS, fmtClock, netOf, type SectionKey } from './gen/engine';
-import { computeResults, type ExamResult } from './analysis';
+import { SECTION_ORDER, SECTION_LABEL, SEC_TIME, LETTERS, fmtClock, netOf, type SectionKey } from './gen/engine';
+import { computeResults, topicStatsOf, type ExamResult } from './analysis';
 import { saveHistory, type HistoryEntry } from './storage';
-import { Modal, DataTableView, Pre } from './ui';
+import { Modal, DIView, Pre } from './ui';
 import type { Paper } from './App';
 
 export interface ExamOutcome {
@@ -28,9 +28,9 @@ interface St {
   flash: string;
 }
 
-const SEC_TIME = 1200;
+const FONT_STEPS = [0.9, 1, 1.18];
 
-export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Paper; candidate: string; onFinish: (o: ExamOutcome) => void; onQuit: () => void }) {
+export default function Exam({ paper, candidate, fontScale, setFontScale, onFinish, onQuit }: { paper: Paper; candidate: string; fontScale: number; setFontScale: (f: number) => void; onFinish: (o: ExamOutcome) => void; onQuit: () => void }) {
   const qs = paper.questions;
   const n = qs.length;
   const strict = paper.mode === 'strict' && !paper.drill;
@@ -45,14 +45,15 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
     times: Array(n).fill(0),
     cur: 0,
     draft: null,
-    secLeft: secs.map(() => SEC_TIME),
-    totalLeft: paper.drill ? Math.max(120, n * 36) : 3600,
+    secLeft: secs.map((s) => SEC_TIME[s]),
+    totalLeft: paper.drill ? Math.max(120, n * 34) : 2700,
     activeSec: 0,
     done: false,
     flash: '',
   }));
   const [modal, setModal] = useState<null | 'paper' | 'instr' | 'submitSec' | 'submitTest' | 'quit'>(null);
   const [showPalette, setShowPalette] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
   const finished = useRef(false);
   const qTop = useRef<HTMLDivElement>(null);
 
@@ -133,6 +134,9 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
         testNo: paper.testNo,
         label: paper.label,
         mode: paper.mode,
+        exam: 'rrb-clerk',
+        maxMarks: qs.length,
+        topicStats: topicStatsOf(result),
         net: result.net,
         correct: result.correct,
         wrong: result.wrong,
@@ -165,6 +169,7 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
       marked[s.cur] = true;
       return gotoS({ ...s, answers, marked }, nextIdx(s));
     }),
+    next: () => setSt((s) => gotoS(s, nextIdx(s))),
     clear: () => setSt((s) => { const answers = s.answers.slice(); answers[s.cur] = null; return { ...s, answers, draft: null }; }),
     prev: () => setSt((s) => {
       const r = ranges[secOfIdx(s.cur)];
@@ -181,6 +186,33 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
     submitSection: () => { setModal(null); setSt((s) => advanceSection(s)); },
     submitTest: () => { setModal(null); setSt((s) => ({ ...s, done: true })); },
   };
+
+  // ----- keyboard shortcuts -----
+  const actRef = useRef(act);
+  actRef.current = act;
+  const modalRef = useRef(modal);
+  modalRef.current = modal;
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' && (el as HTMLInputElement).type !== 'radio' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (modalRef.current || e.ctrlKey || e.metaKey || e.altKey) return;
+      const a = actRef.current;
+      const k = e.key;
+      let handled = true;
+      if (/^[1-5]$/.test(k)) a.select(Number(k) - 1);
+      else if (k === 'C' || (k === 'c' && e.shiftKey) || k === 'Delete' || k === 'Backspace') a.clear();
+      else if (/^[abdeABDE]$/.test(k) || k === 'c') a.select('abcde'.indexOf(k.toLowerCase()));
+      else if (k === 'Enter') a.saveNext();
+      else if (k === 'm' || k === 'M') a.markNext();
+      else if (k === 'ArrowLeft') a.prev();
+      else if (k === 'ArrowRight') a.next();
+      else handled = false;
+      if (handled) e.preventDefault();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
 
   const tileOf = (s: St, i: number): Tile => {
     const ans = s.answers[i] !== null;
@@ -229,18 +261,23 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
   );
 
   return (
-    <div className="exam">
+    <div className="exam" style={{ ['--fs' as string]: String(fontScale) }}>
       <header className="exam-head">
         <div className="eh-left">
-          <div className="logo sm">BC</div>
+          <div className="logo sm">RRB</div>
           <div>
-            <div className="eh-title">{paper.drill ? paper.label : `Bank Clerk Prelims · ${paper.label}`}</div>
+            <div className="eh-title">{paper.drill ? paper.label : `IBPS RRB Clerk Prelims · ${paper.label}`}</div>
             <div className="eh-sub">{paper.dateKey} · {strict ? 'Strict Real Exam Mode' : paper.drill ? 'Retry Drill (untimed sections)' : 'Practice / Free Switch Mode'}</div>
           </div>
         </div>
         <div className="eh-right">
+          <div className="font-toggle" role="group" aria-label="Text size">
+            {FONT_STEPS.map((f, i) => (
+              <button key={f} className={Math.abs(fontScale - f) < 0.01 ? 'on' : ''} onClick={() => setFontScale(f)} aria-label={['Smaller text', 'Normal text', 'Larger text'][i]} title={['Smaller text', 'Normal text', 'Larger text'][i]}>{['A−', 'A', 'A+'][i]}</button>
+            ))}
+          </div>
           <div className={`timer ${timerTone}`}>
-            <span className="t-label">{strict ? `${secRange.s === 'Numerical' ? 'Quant' : secRange.s} section` : 'Time Left'}</span>
+            <span className="t-label">{strict ? `${secRange.s === 'Numerical' ? 'Quant' : 'Reasoning'} section` : 'Time Left'}</span>
             <span className="t-val">{fmtClock(left)}</span>
           </div>
           <div className="timer overall">
@@ -265,10 +302,20 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
         <div className="tool-btns">
           <button className="btn tiny" onClick={() => setModal('paper')}>📄 Question Paper</button>
           <button className="btn tiny" onClick={() => setModal('instr')}>ℹ Instructions</button>
+          <button className={`btn tiny keys-chip ${showKeys ? 'on' : ''}`} onClick={() => setShowKeys((v) => !v)} aria-expanded={showKeys}>⌨ Shortcuts</button>
           <button className="btn tiny mobile-only" onClick={() => setShowPalette((v) => !v)}>▦ Palette</button>
         </div>
       </div>
 
+      {showKeys && (
+        <div className="keys-bar">
+          <span><kbd>1</kbd>–<kbd>5</kbd> / <kbd>A</kbd>–<kbd>E</kbd> select</span>
+          <span><kbd>Enter</kbd> Save &amp; Next</span>
+          <span><kbd>M</kbd> Mark &amp; Next</span>
+          <span><kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Del</kbd> Clear</span>
+          <span><kbd>←</kbd> Previous · <kbd>→</kbd> Next</span>
+        </div>
+      )}
       {st.flash && <div className="flash">{st.flash}</div>}
 
       <div className="exam-body">
@@ -286,7 +333,7 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
               <div className="q-passage">
                 {q.passageTitle && <div className="passage-title">{q.passageTitle}</div>}
                 {q.passage && <Pre text={q.passage} />}
-                {q.table && <DataTableView table={q.table} />}
+                {q.table && <DIView table={q.table} />}
               </div>
             )}
             <div className="q-main">
@@ -360,7 +407,8 @@ export default function Exam({ paper, candidate, onFinish, onQuit }: { paper: Pa
       {modal === 'instr' && (
         <Modal title="Instructions" onClose={() => setModal(null)}>
           <ul className="instr-list">
-            <li>{strict ? 'Each section has its own 20-minute timer and opens only after the previous one ends.' : 'One timer runs for the whole paper; switch sections from the tabs.'}</li>
+            <li>{strict ? 'Reasoning has 25 minutes and Numerical Ability 20 minutes; each section opens only after the previous one ends.' : 'One 45-minute timer runs for the whole paper; switch sections from the tabs.'}</li>
+            <li>Shortcuts: 1–5 or A–E select, Enter = Save &amp; Next, M = Mark &amp; Next, Shift+C or Delete = Clear, ← / → = Previous / Next.</li>
             <li>Select an option and click <b>Save &amp; Next</b> to save it. Unsaved selections are discarded when you move away.</li>
             <li><b>Mark for Review &amp; Next</b> saves the selected option (if any) and flags the question. Answered &amp; marked questions are evaluated.</li>
             <li>+1 for a correct answer, −0.25 for a wrong answer, 0 for unattempted.</li>

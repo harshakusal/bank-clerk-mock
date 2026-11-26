@@ -1,4 +1,4 @@
-type SectionKey = "English" | "Numerical" | "Reasoning";
+type SectionKey = "Reasoning" | "Numerical";
 type Difficulty = "Easy" | "Moderate" | "Tricky";
 type Phase = "start" | "instructions" | "exam" | "result";
 type QStatus = "correct" | "wrong" | "skipped";
@@ -8,19 +8,21 @@ type TileState = "answered" | "notAnswered" | "marked" | "answeredMarked" | "not
 type Tone = "success" | "warning" | "danger";
 type RNG = () => number;
 
-interface DataTable { title: string; columns: string[]; rows: string[][] }
+interface DataTable { title: string; columns: string[]; rows: string[][]; chart?: "bar" | "line" | "pie"; total?: number }
 interface Question {
   section: SectionKey; topic: string; difficulty: Difficulty;
   passageTitle?: string; passage?: string; table?: DataTable;
   question: string; options: string[]; correctIndex: number;
   explanation: string[]; shortcut: string; commonTrap: string;
+  variant?: string;
 }
 type Base = Omit<Question, "options" | "correctIndex">;
 
-const SECTION_ORDER: SectionKey[] = ["English", "Numerical", "Reasoning"];
-const SECTION_LABEL: Record<SectionKey, string> = { English: "English Language", Numerical: "Numerical Ability", Reasoning: "Reasoning Ability" };
-const FULL_COUNT: Record<SectionKey, number> = { English: 30, Numerical: 35, Reasoning: 35 };
-const SEC_TARGET: Record<SectionKey, number> = { English: 40, Numerical: 34, Reasoning: 34 };
+const SECTION_ORDER: SectionKey[] = ["Reasoning", "Numerical"];
+const SECTION_LABEL: Record<SectionKey, string> = { Reasoning: "Reasoning Ability", Numerical: "Numerical Ability" };
+const FULL_COUNT: Record<SectionKey, number> = { Reasoning: 40, Numerical: 40 };
+const SEC_TIME: Record<SectionKey, number> = { Reasoning: 1500, Numerical: 1200 };
+const SEC_TARGET: Record<SectionKey, number> = { Reasoning: 37, Numerical: 30 };
 const SEC_LIMIT = 1200;
 const LETTERS = ["A", "B", "C", "D", "E"];
 const SHIFTS = ["Morning Shift", "Afternoon Shift", "Evening Shift"];
@@ -30,8 +32,6 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 const NAMES = ["Amit", "Bhavna", "Chetan", "Deepa", "Esha", "Farhan", "Gopal", "Hema", "Irfan", "Jaya", "Kiran", "Lata", "Mohan", "Neha", "Om", "Pooja", "Ravi", "Sara", "Tarun", "Uma", "Varun", "Yash", "Zoya", "Nikhil"];
 const MALES = ["Rahul", "Arjun", "Vikram", "Sanjay", "Manoj", "Karan", "Dev", "Rohit"];
 const FEMALES = ["Neha", "Priya", "Anita", "Kavya", "Meera", "Sneha", "Ritu", "Divya"];
-const ALL100: number[] = Array.from({ length: 100 }, (_: unknown, i: number) => i);
-const secOf = (i: number): SectionKey => (i < 30 ? "English" : i < 65 ? "Numerical" : "Reasoning");
 const shiftName = (n: number): string => (n <= 3 ? SHIFTS[n - 1] : "Fresh Paper");
 
 // ================= PRNG & helpers =================
@@ -88,160 +88,6 @@ const NB = (topic: string, difficulty: Difficulty, question: string, explanation
   ({ section: "Numerical", topic, difficulty, question, explanation, shortcut, commonTrap });
 const RB = (topic: string, difficulty: Difficulty, question: string, explanation: string[], shortcut: string, commonTrap: string): Base =>
   ({ section: "Reasoning", topic, difficulty, question, explanation, shortcut, commonTrap });
-
-// ================= ENGLISH BANK =================
-interface RCQ { q: string; o: string[]; e: string; d: Difficulty }
-interface RCSet { title: string; text: string; qs: RCQ[] }
-const RC: RCSet[] = [
-  {
-    title: "Digital payments and trust",
-    text: "In less than a decade, India has built one of the world's largest real-time payment systems. The Unified Payments Interface allows customers to transfer money instantly between bank accounts using only a mobile phone, and it now handles billions of transactions every month. Small merchants, who once refused card payments because of high charges, readily accept QR-code payments, since they cost little and the money reaches their accounts at once. This shift has brought many informal businesses into the digital economy, creating a record of transactions that banks can use to judge creditworthiness. A street vendor with a steady history of digital receipts can now be considered for a small loan that would earlier have been denied for want of documents. Yet the rapid growth has a darker side. Fraudsters increasingly exploit customers who are unfamiliar with technology, tricking them into sharing PINs or approving fake payment requests. Experts therefore stress that the success of digital payments must be measured not only by volume but also by trust. Banks and regulators, they argue, should invest as much in customer awareness and grievance redressal as in expanding the network, because a single bad experience can drive a new user back to cash. Government incentives and the spread of low-cost smartphones have accelerated this adoption even in small towns, where cash was once the only accepted medium of exchange. Analysts believe that the next phase of growth will come from credit on the same rails, allowing small borrowers to access tiny loans within seconds.",
-    qs: [
-      { q: "Why do small merchants readily accept QR-code payments?", o: ["They cost little and the money reaches their accounts at once", "The government has made them compulsory", "Customers have stopped carrying cash", "Banks pay merchants a bonus for every payment", "Card machines are not available to them"], e: "The passage says merchants accept QR payments 'since they cost little and the money reaches their accounts at once'.", d: "Easy" },
-      { q: "How do digital payments help a street vendor obtain a loan?", o: ["The record of digital receipts helps banks judge his creditworthiness", "Vendors receive interest-free loans automatically", "Banks stop checking the repayment capacity of vendors", "The government guarantees every such loan", "Vendors can borrow through UPI without a bank account"], e: "Digital transactions create 'a record ... that banks can use to judge creditworthiness'.", d: "Easy" },
-      { q: "What is the 'darker side' of the rapid growth mentioned in the passage?", o: ["Fraud targeting customers unfamiliar with technology", "Rising charges on every transaction", "Frequent failure of mobile networks", "Closure of bank branches in villages", "Loss of jobs among bank cashiers"], e: "The sentence after 'darker side' describes fraudsters exploiting customers unfamiliar with technology.", d: "Easy" },
-      { q: "According to the experts, how should the success of digital payments be measured?", o: ["By both the volume of transactions and the trust of users", "Only by the number of transactions", "By the number of new bank branches", "By the profits earned by banks", "By the value of loans given to vendors"], e: "Experts say success must be measured 'not only by volume but also by trust'.", d: "Moderate" },
-      { q: "Which of the following can be inferred from the passage?", o: ["A poor experience can make new users abandon digital payments", "Cash will disappear completely within a year", "UPI works without any bank account", "Card payments are cheaper for merchants than QR payments", "Regulators are opposed to digital payments"], e: "The last line says 'a single bad experience can drive a new user back to cash'.", d: "Moderate" },
-      { q: "What is the tone of the author in the passage?", o: ["Cautiously optimistic", "Bitterly sarcastic", "Deeply pessimistic", "Completely indifferent", "Openly hostile"], e: "The author praises the growth of digital payments but warns about fraud and stresses trust, which is a cautiously optimistic tone.", d: "Moderate" },
-      { q: "Choose the word most similar in meaning to 'readily' as used in the passage.", o: ["Willingly", "Reluctantly", "Rarely", "Secretly", "Slowly"], e: "'Readily' means without hesitation, that is, willingly.", d: "Easy" },
-      { q: "Choose the word most opposite in meaning to 'steady' as used in the passage.", o: ["Irregular", "Constant", "Regular", "Stable", "Firm"], e: "'Steady' means regular and consistent; its opposite is 'irregular'.", d: "Easy" },
-    ],
-  },
-  {
-    title: "Inflation and the repo rate",
-    text: "When prices rise persistently across the economy, the purchasing power of money falls, and households find that the same income buys fewer goods. To keep inflation in check, a central bank uses its policy rate, known in India as the repo rate, which is the rate at which it lends short-term funds to commercial banks. When inflation is high, the central bank may raise the repo rate. Borrowing then becomes costlier for banks, which pass on the higher cost to customers through dearer home, vehicle and business loans. As borrowing slows, demand cools and price pressures gradually ease. However, the tool is a blunt one. Higher rates can also hurt growth by discouraging investment, and their full effect is felt only after a lag of several months. A central bank must therefore strike a delicate balance, tightening enough to tame prices without choking economic activity. Its credibility matters as much as its actions: if people believe that inflation will be controlled, they are less likely to demand steep wage increases or hoard goods, which itself helps keep prices stable. Since 2016, India has followed a flexible inflation-targeting framework under which the central bank aims to keep retail inflation close to four per cent, within a band of two percentage points on either side. Food and fuel prices, however, are often driven by weather and global markets, which a domestic interest rate can do little to influence.",
-    qs: [
-      { q: "What is the repo rate, according to the passage?", o: ["The rate at which the central bank lends short-term funds to commercial banks", "The rate banks pay on savings deposits", "The rate at which prices rise in the economy", "The tax charged on bank loans", "The rate at which banks lend to foreign banks"], e: "The passage defines it as 'the rate at which it lends short-term funds to commercial banks'.", d: "Easy" },
-      { q: "What happens when the repo rate is raised?", o: ["Loans become costlier and demand gradually cools", "Banks reduce their home loan rates", "Inflation rises immediately", "Investment increases sharply", "Savings lose all their value"], e: "Higher rates make loans 'dearer'; 'as borrowing slows, demand cools'.", d: "Easy" },
-      { q: "Why does the author call the policy tool 'a blunt one'?", o: ["It can hurt growth and acts only after a lag", "It has no effect on prices at all", "It is used only once a year", "It benefits only large banks", "It increases the supply of money"], e: "The next sentence explains: higher rates can hurt growth and take effect after a lag of months.", d: "Moderate" },
-      { q: "Which of the following can be inferred from the passage?", o: ["Public belief that inflation will be controlled can itself help stabilise prices", "Central banks should never change interest rates", "Higher wages always reduce inflation", "Hoarding goods lowers prices", "Credibility has no role in monetary policy"], e: "The last sentence says if people believe inflation will be controlled, their behaviour 'helps keep prices stable'.", d: "Moderate" },
-      { q: "Which of the following is NOT true according to the passage?", o: ["Higher rates show their full effect immediately", "Rising prices reduce the purchasing power of money", "Banks pass on higher borrowing costs to customers", "Higher rates can discourage investment", "The central bank's credibility matters"], e: "The passage says the full effect is felt 'only after a lag of several months'.", d: "Moderate" },
-      { q: "What is the tone of the author in the passage?", o: ["Analytical", "Humorous", "Nostalgic", "Indifferent", "Sarcastic"], e: "The author explains how the repo rate works, weighs its costs and benefits and draws a conclusion: the tone is analytical.", d: "Moderate" },
-      { q: "Choose the word most similar in meaning to 'dearer' as used in the passage.", o: ["Costlier", "Cheaper", "Friendlier", "Longer", "Safer"], e: "'Dearer loans' are more expensive loans.", d: "Easy" },
-      { q: "Choose the word most opposite in meaning to 'persistently' as used in the passage.", o: ["Occasionally", "Continuously", "Constantly", "Steadily", "Repeatedly"], e: "'Persistently' means continuously; its opposite is 'occasionally'.", d: "Easy" },
-    ],
-  },
-  {
-    title: "Bad loans and prudent lending",
-    text: "A loan becomes a non-performing asset when the borrower fails to pay interest or principal for more than ninety days. High levels of such assets weaken a bank in several ways. The bank must set aside part of its profits as provisions to cover possible losses, which leaves less money for fresh lending. Its capital base shrinks, and depositors and investors begin to lose confidence. In the past decade, many Indian banks saw their bad loans swell after they lent heavily to large projects that later stalled. The response came on several fronts. The Insolvency and Bankruptcy Code gave lenders a time-bound process to recover dues from defaulting companies, while the government infused fresh capital into public sector banks. Banks, on their part, tightened credit appraisal and began to monitor stressed accounts early. These measures have brought bad-loan ratios down considerably. Still, bankers caution against complacency. A sudden economic shock, they warn, can quickly turn healthy loans sour, so prudent lending must remain a habit rather than a reaction to crisis. Banks also began selling stressed loans to asset reconstruction companies so that they could clean up their balance sheets and focus on fresh lending. Regulators, meanwhile, asked banks to recognise stress early instead of hiding it through repeated restructuring of weak accounts. Credit rating agencies and auditors were also asked to flag warning signs sooner. Together, these steps were meant to ensure that a bank discovers trouble while it is still small and manageable, rather than after it has spread across its loan book.",
-    qs: [
-      { q: "When does a loan become a non-performing asset?", o: ["When interest or principal remains unpaid for more than ninety days", "When the loan amount exceeds one crore", "As soon as a single instalment is delayed", "When the borrower changes his bank", "When the loan is given to a large project"], e: "The first sentence gives the ninety-day rule.", d: "Easy" },
-      { q: "How do high bad loans reduce fresh lending?", o: ["Banks must set aside profits as provisions, leaving less to lend", "Depositors are forced to withdraw their money", "The government bans all new loans", "Interest rates fall to zero", "Borrowers stop applying for loans"], e: "Provisions 'leave less money for fresh lending'.", d: "Easy" },
-      { q: "What led to the rise in bad loans in the past decade?", o: ["Heavy lending to large projects that later stalled", "A fall in the number of depositors", "Excessive lending to farmers", "Strict credit appraisal by banks", "Low interest rates on deposits"], e: "Banks 'lent heavily to large projects that later stalled'.", d: "Easy" },
-      { q: "Which of the following was NOT mentioned as part of the response?", o: ["Waiving the loans of all defaulting companies", "A time-bound insolvency process", "Fresh capital for public sector banks", "Tighter credit appraisal", "Early monitoring of stressed accounts"], e: "Loan waivers are never mentioned; the other four are.", d: "Moderate" },
-      { q: "What is the main caution given by bankers?", o: ["Prudent lending must continue even when bad loans are low", "Bad loans can never rise again", "Banks should stop lending to companies", "Economic shocks improve loan quality", "The insolvency law should be withdrawn"], e: "Bankers caution against complacency: prudent lending 'must remain a habit'.", d: "Moderate" },
-      { q: "What is the tone of the author in the passage?", o: ["Cautionary", "Celebratory", "Sarcastic", "Indifferent", "Humorous"], e: "The passage ends by warning bankers against complacency, so the tone is cautionary.", d: "Moderate" },
-      { q: "Choose the word most similar in meaning to 'swell' as used in the passage.", o: ["Increase", "Shrink", "Vanish", "Stabilise", "Recover"], e: "Bad loans 'swell' means they grow or increase.", d: "Easy" },
-      { q: "Choose the word most opposite in meaning to 'complacency' as used in the passage.", o: ["Vigilance", "Satisfaction", "Laziness", "Smugness", "Carelessness"], e: "Complacency is careless self-satisfaction; its opposite is vigilance.", d: "Tricky" },
-    ],
-  },
-];
-
-interface ClozeSet { title: string; text: string; blanks: string[][] }
-const CLOZE: ClozeSet[] = [
-  { title: "Cloze test: The saving habit", text: "Saving regularly is the (1) ______ of financial security. A household that sets aside even a small part of its income every month builds a (2) ______ that can absorb unexpected expenses. Banks encourage this habit by offering recurring deposits, which (3) ______ customers to deposit a fixed sum at regular intervals. The interest earned is (4) ______ to the principal, so the savings grow faster over time. Financial planners advise people not to (5) ______ saving until they earn more, because the benefit of compounding is greatest when one starts early. In short, discipline matters more than the (6) ______ of money saved.", blanks: [["foundation", "ceiling", "obstacle", "burden", "margin"], ["cushion", "hurdle", "debt", "gap", "loss"], ["allow", "forbid", "prevent", "refuse", "deny"], ["added", "removed", "lent", "taxed", "deducted"], ["postpone", "begin", "start", "continue", "enjoy"], ["amount", "colour", "shape", "speed", "weight"]] },
-  { title: "Cloze test: Staying safe from cyber fraud", text: "As more customers bank online, cyber criminals have become more (1) ______. They send messages that appear to come from a bank and (2) ______ customers to click on fake links. Once a customer enters his details on such a page, the fraudster can (3) ______ his account within minutes. Banks repeatedly (4) ______ customers never to share their PIN or one-time password with anyone. They have also introduced alerts that (5) ______ customers of every transaction. Ultimately, an (6) ______ customer is the strongest defence against fraud.", blanks: [["sophisticated", "honest", "careless", "generous", "idle"], ["urge", "forbid", "stop", "prevent", "discourage"], ["empty", "fill", "protect", "audit", "insure"], ["remind", "forget", "ignore", "allow", "permit"], ["notify", "hide", "deprive", "prevent", "accuse"], ["alert", "careless", "absent", "idle", "unaware"]] },
-  { title: "Cloze test: Banking reaches the village", text: "For decades, millions of villagers had no (1) ______ to formal banking. They depended on moneylenders who charged (2) ______ rates of interest. To change this, banks appointed business correspondents who (3) ______ basic services such as deposits and withdrawals in remote villages. Mobile banking further (4) ______ the distance between customers and their accounts. As a result, rural households can now (5) ______ small sums safely and receive government benefits directly. The challenge now is to (6) ______ these accounts active through regular use.", blanks: [["access", "excess", "objection", "resistance", "distance"], ["exorbitant", "modest", "negligible", "fair", "nominal"], ["provide", "withdraw", "refuse", "deny", "cancel"], ["reduced", "increased", "doubled", "created", "widened"], ["save", "lose", "waste", "steal", "forfeit"], ["keep", "close", "freeze", "abandon", "shut"]] },
-];
-
-type ErrItem = [string[], number, string];
-const ERR: ErrItem[] = [
-  [["Each of the customers", "who visited the branch", "were given a", "free passbook cover."], 2, "'Each' is singular, so 'were given' should be 'was given'."],
-  [["Neither the cashier nor the clerks", "was aware of", "the new rule regarding", "cash deposits."], 1, "With 'neither ... nor' the verb agrees with the nearer subject 'clerks': use 'were'."],
-  [["The manager along with his staff", "are attending", "a training programme", "in Mumbai this week."], 1, "'Along with' does not change the singular subject 'The manager': use 'is attending'."],
-  [["She has been working", "in this bank", "since five years", "and plans to stay."], 2, "A period of time takes 'for': 'for five years'."],
-  [["If I would have known", "about the offer,", "I would have opened", "a fixed deposit."], 0, "Third conditional: 'If I had known'."],
-  [["The number of digital transactions", "have increased sharply", "over the last", "few years."], 1, "'The number of' takes a singular verb: 'has increased'."],
-  [["He is one of those officers", "who has always", "helped customers", "without any delay."], 1, "'Who' refers to 'officers' (plural): 'who have always'."],
-  [["The bank has", "introduced a new scheme", "for the benefit of", "senior citizens."], 4, "The sentence is grammatically correct."],
-  [["Despite of the heavy rain,", "the branch remained open", "and served customers", "till evening."], 0, "'Despite' is never followed by 'of': 'Despite the heavy rain'."],
-  [["Hardly had the auditor arrived", "when the manager", "had left", "the office."], 2, "After 'Hardly had ... when', the second action takes the simple past: 'left'."],
-  [["Ravi is senior", "than his colleague", "by two years", "in the bank."], 1, "'Senior' takes 'to', not 'than': 'senior to his colleague'."],
-  [["The committee have", "submitted its report", "to the board", "this morning."], 0, "The committee acts as one unit ('its report'), so use 'has'."],
-  [["Unless you do not submit", "the KYC documents,", "your account", "will remain inactive."], 0, "'Unless' already means 'if not': 'Unless you submit'."],
-  [["The customer requested", "the clerk to", "issue him", "a new chequebook."], 4, "The sentence is grammatically correct."],
-  [["Between you and I,", "the new branch", "is far better", "than the old one."], 0, "A preposition takes the object pronoun: 'Between you and me'."],
-  [["I look forward", "to meet you", "at the annual", "general meeting."], 1, "'Look forward to' is followed by a gerund: 'to meeting you'."],
-  [["No sooner did the bank", "announce the offer", "when customers", "rushed to apply."], 2, "'No sooner' pairs with 'than': 'than customers rushed'."],
-];
-
-const PJ: string[][] = [
-  ["When the central bank cuts the repo rate, banks can borrow funds at a lower cost.", "Banks, in turn, pass on part of this benefit by reducing their lending rates.", "As a result, borrowers find it cheaper to take home and business loans.", "This increased borrowing tends to boost spending and investment.", "Over time, higher demand supports economic growth and employment."],
-  ["In the early 2010s, banks lent aggressively to infrastructure projects.", "However, many of these projects stalled because of delays in approvals.", "Consequently, a large share of the loans turned into bad loans.", "To address this, the government recapitalised public sector banks.", "These steps, along with a new insolvency law, gradually improved bank balance sheets."],
-  ["Ramya decided to open a savings account at the bank near her home.", "First, she visited the branch to ask which documents were required.", "The next day, she submitted the form along with copies of her KYC documents.", "After verification, the bank activated her account within two days.", "She then received her debit card and began using mobile banking."],
-];
-
-interface MiscItem { k: "phrase" | "spell" | "swap"; q: string; o: string[]; a: string; e: string }
-const MISC: MiscItem[] = [
-  { k: "phrase", q: "The new branch manager is known for taking decisions 'on the spur of moment'.", o: ["on the spur of the moment", "on spur of the moment", "at the spur of moment", "in the spur of a moment"], a: "", e: "The fixed idiom is 'on the spur of the moment', meaning suddenly, without planning." },
-  { k: "spell", q: "", o: ["Accomodation", "Recommendation", "Necessary", "Occasion", "Committee"], a: "Accommodation", e: "" },
-  { k: "swap", q: "The bank loan (A) the sanctioned (B) to the farmer (C) after verifying (D) his documents.", o: [], a: "A-B", e: "Swapping 'loan' and 'sanctioned' gives: The bank sanctioned the loan to the farmer after verifying his documents." },
-  { k: "phrase", q: "The bank 'has been functioning since' a hundred years in this town.", o: ["has been functioning for", "is functioning since", "has functioned since", "was functioning from"], a: "", e: "A period of time ('a hundred years') takes 'for' with the present perfect continuous." },
-  { k: "spell", q: "", o: ["Recieve", "Achieve", "Believe", "Deceive", "Perceive"], a: "Receive", e: "" },
-  { k: "swap", q: "Customers (A) should never share (B) their strangers (C) with PIN (D).", o: [], a: "C-D", e: "Swapping 'strangers' and 'PIN' gives: Customers should never share their PIN with strangers." },
-  { k: "phrase", q: "If he 'would have applied' earlier, he would have got the loan.", o: ["had applied", "would apply", "has applied", "applies"], a: "", e: "In a third conditional the if-clause takes the past perfect: 'If he had applied'." },
-  { k: "spell", q: "", o: ["Entrepeneur", "Bureaucracy", "Liaison", "Questionnaire", "Millennium"], a: "Entrepreneur", e: "" },
-  { k: "swap", q: "The notes (A) counted the cashier (B) carefully (C) before handing (D) them over.", o: [], a: "A-B", e: "Swapping 'notes' and 'cashier' gives: The cashier counted the notes carefully before handing them over." },
-  { k: "phrase", q: "She prefers digital payments 'than carrying' cash.", o: ["to carrying", "than to carry", "rather to carry", "over to carry"], a: "", e: "'Prefer' takes 'to': prefer X to Y (carrying)." },
-  { k: "spell", q: "", o: ["Maintainance", "Guarantee", "Privilege", "Separate", "Definitely"], a: "Maintenance", e: "" },
-  { k: "swap", q: "Rising money (A) reduces (B) the purchasing (C) power of inflation (D).", o: [], a: "A-D", e: "Swapping 'money' and 'inflation' gives: Rising inflation reduces the purchasing power of money." },
-  { k: "phrase", q: "The clerk 'is working here since' 2019.", o: ["has been working here since", "was working here since", "is working here from", "worked here since"], a: "", e: "An action that began in the past and continues takes the present perfect continuous with 'since'." },
-  { k: "spell", q: "", o: ["Transfered", "Referred", "Occurred", "Preferred", "Deferred"], a: "Transferred", e: "" },
-  { k: "swap", q: "The interest (A) on the deposit (B) is credited (C) to the account every quarter (D).", o: [], a: "None", e: "The sentence is already meaningful; no interchange is needed." },
-  { k: "phrase", q: "'Scarcely the meeting had begun' when the power failed.", o: ["Scarcely had the meeting begun", "Scarcely did the meeting began", "Scarcely the meeting began", "Scarcely has the meeting begun"], a: "", e: "'Scarcely' at the start needs inversion: 'Scarcely had the meeting begun when...'." },
-  { k: "spell", q: "", o: ["Concious", "Conscience", "Precious", "Delicious", "Gracious"], a: "Conscious", e: "" },
-  { k: "phrase", q: "The customer 'was angry upon' the delay in sanctioning his loan.", o: ["was angry about", "was angry on", "was angry for", "angered upon"], a: "", e: "We are angry 'about' or 'at' a thing, and 'with' a person." },
-];
-const PAIRS = ["A-B", "A-C", "A-D", "B-C", "B-D", "C-D"];
-
-function buildEnglish(r: RNG, slot: number, dayHash: number): Question[] {
-  const setIdx = slot <= 3 ? (slot - 1 + dayHash) % 3 : ri(r, 0, 2);
-  function poolPick<T>(arr: T[], n: number): T[] {
-    if (slot <= 3) {
-      const perm = shuffle(mulberry32(dayHash ^ (arr.length * 7919)), arr.map((_: T, i: number) => i));
-      return perm.filter((_: number, k: number) => k % 3 === slot - 1).slice(0, n).map((i: number) => arr[i]);
-    }
-    return shuffle(r, arr).slice(0, n);
-  }
-  const out: Question[] = [];
-  const rc = RC[setIdx];
-  const rcQs = slot <= 3 ? rc.qs : shuffle(r, rc.qs);
-  rcQs.forEach((x: RCQ) => {
-    out.push(finalize(r, { section: "English", topic: "Reading Comprehension", difficulty: x.d, passageTitle: `Passage: ${rc.title}`, passage: rc.text, question: x.q, explanation: [x.e, `Correct answer: ${x.o[0]}.`], shortcut: "Read the question first, then scan the passage for its keyword and answer only from the text.", commonTrap: "Choosing an option that sounds true in real life but is not stated in the passage, or confusing synonym with antonym." }, x.o[0], x.o.slice(1)));
-  });
-  const cz = CLOZE[(setIdx + 1) % 3];
-  cz.blanks.forEach((b: string[], i: number) => {
-    out.push(finalize(r, { section: "English", topic: "Cloze Test", difficulty: i % 2 ? "Moderate" : "Easy", passageTitle: cz.title, passage: cz.text, question: `Which word best fits blank (${i + 1})?`, explanation: [`Read the full sentence around blank (${i + 1}); only '${b[0]}' fits both the grammar and the meaning of the passage.`, `Correct sentence uses: ${b[0]}.`], shortcut: "Read the whole sentence, then test each option for both grammar and the passage's direction of meaning.", commonTrap: "Picking a word that fits grammatically but reverses the meaning of the sentence." }, b[0], b.slice(1)));
-  });
-  poolPick(ERR, 5).forEach((it: ErrItem) => {
-    const [parts, ans, e] = it;
-    const opts = [...parts.map((p: string, i: number) => `(${LETTERS[i]}) ${p}`), "(E) No error"];
-    out.push({ section: "English", topic: "Error Spotting", difficulty: ans === 4 ? "Tricky" : "Moderate", question: `Read the sentence and find the part with a grammatical error. If there is no error, mark (E).\n\n${parts.map((p: string, i: number) => `${p} (${LETTERS[i]})`).join(" / ")}`, options: opts, correctIndex: ans, explanation: [e, ans === 4 ? "Answer: (E) No error." : `Answer: part (${LETTERS[ans]}).`], shortcut: "Check subject-verb agreement first, then tense, then prepositions and articles.", commonTrap: "The error hides in a part that sounds natural in spoken English." });
-  });
-  const pjSet = PJ[(setIdx + 2) % 3];
-  let perm = shuffle(r, [0, 1, 2, 3, 4]);
-  while (perm.every((v: number, i: number) => v === i)) perm = shuffle(r, [0, 1, 2, 3, 4]);
-  const scrambled = perm.map((k: number) => pjSet[k]);
-  const order = [0, 1, 2, 3, 4].map((k: number) => perm.indexOf(k));
-  const pjPassage = scrambled.map((s: string, i: number) => `(${LETTERS[i]}) ${s}`).join("\n");
-  ["FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH"].forEach((w: string, k: number) => {
-    out.push({ section: "English", topic: "Para Jumbles", difficulty: k === 0 || k === 4 ? "Easy" : "Moderate", passageTitle: "Rearrange sentences (A) to (E) into a meaningful paragraph", passage: pjPassage, question: `Which of the following should be the ${w} sentence after rearrangement?`, options: scrambled, correctIndex: order[k], explanation: [`Correct order: ${order.map((i: number) => LETTERS[i]).join(" ")}.`, "The opener introduces the topic without any connector; words such as 'in turn', 'However', 'As a result', 'These' and 'then' link the rest."], shortcut: "Find the opener (no pronoun or connector) and the closer first; link the middle through connectors.", commonTrap: "Starting with a sentence that begins with a connector or a pronoun." });
-  });
-  poolPick(MISC, 6).forEach((m: MiscItem) => {
-    if (m.k === "phrase") {
-      const o = shuffle(r, m.o);
-      out.push({ section: "English", topic: "Phrase Replacement", difficulty: "Moderate", question: `Which of the following can replace the phrase in quotes to make the sentence correct? If no change is needed, mark (E).\n\n${m.q}`, options: [...o, "No replacement required"], correctIndex: o.indexOf(m.o[0]), explanation: [m.e, `Correct: ${m.o[0]}.`], shortcut: "Compare articles, prepositions and verb forms word by word.", commonTrap: "Marking 'No replacement required' because the error is only one small word." });
-    } else if (m.k === "spell") {
-      const o = shuffle(r, [m.o[0], ...shuffle(r, m.o.slice(1)).slice(0, 3)]);
-      out.push({ section: "English", topic: "Misspelt Words", difficulty: "Easy", question: "Which of the following words is misspelt? If all are correctly spelt, mark (E).", options: [...o, "All are correctly spelt"], correctIndex: o.indexOf(m.o[0]), explanation: [`'${m.o[0]}' is misspelt; the correct spelling is '${m.a}'.`], shortcut: "Check double letters and 'ie/ei' combinations first.", commonTrap: "Reading the word as a whole instead of letter by letter." });
-    } else {
-      const others = shuffle(r, PAIRS.filter((p: string) => p !== m.a)).slice(0, m.a === "None" ? 4 : 3);
-      const o = m.a === "None" ? others : shuffle(r, [m.a, ...others]);
-      out.push({ section: "English", topic: "Word Swap", difficulty: "Moderate", question: `Which pair of words marked (A), (B), (C) and (D) should be interchanged to make the sentence meaningful? If no interchange is needed, mark (E).\n\n${m.q}`, options: [...o, "No interchange required"], correctIndex: m.a === "None" ? 4 : o.indexOf(m.a), explanation: [m.e], shortcut: "Read the sentence with each pair swapped; only one swap gives a sensible sentence.", commonTrap: "Swapping words that are grammatically similar but make the meaning absurd." });
-    }
-  });
-  return out;
-}
 
 // ================= NUMERICAL =================
 const pert = (r: RNG, n: number): string => (n + pick(r, [-0.03, -0.02, -0.01, 0.01, 0.02, 0.03])).toFixed(2);
@@ -403,8 +249,8 @@ function diQs(r: RNG): Question[] {
   const [a3, b3] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 2);
   const base = 40 * ri(r, 4, 10); const p = pick(r, [10, 20, 25, 50, 75, 12.5, 37.5, 60]);
   v[b3][c3] = base; v[a3][c3] = base + (base * p) / 100;
-  const table: DataTable = { title: branches ? "Loans disbursed (Rs crore) by five branches of a bank in 2025" : "Accounts opened by a bank branch, January to May 2025", columns: [branches ? "Branch" : "Month", ...cols], rows: rowsL.map((n: string, i: number) => [n, ...v[i].map(String)]) };
-  const D = (q: string, d: Difficulty, e: string[], s: string, tr: string): Base => ({ ...NB("Data Interpretation", d, q, e, s, tr), table });
+  const table: DataTable = { chart: "bar", title: branches ? "Loans disbursed (Rs crore) by five branches of a bank in 2025" : "Accounts opened by a bank branch, January to May 2025", columns: [branches ? "Branch" : "Month", ...cols], rows: rowsL.map((n: string, i: number) => [n, ...v[i].map(String)]) };
+  const D = (q: string, d: Difficulty, e: string[], s: string, tr: string): Base => ({ ...NB("Data Interpretation", d, q, e, s, tr), table, variant: "bar" });
   const out: Question[] = [];
   const [i1, j1] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 2); const c1 = ri(r, 0, 2); const sum = v[i1][c1] + v[j1][c1];
   out.push(mkN(r, D(`What is the total number of ${cols[c1].toLowerCase()}${unit} of ${rowName(i1)} and ${rowName(j1)} together?`, "Easy", [`${v[i1][c1]} + ${v[j1][c1]} = ${sum}.`], "Add the two cells directly; check the unit digit of the options first.", "Reading the wrong row or column."), sum, 10, [], String));
@@ -416,6 +262,81 @@ function diQs(r: RNG): Question[] {
   out.push(mkN(r, D(`What is the average number of ${cols[c4].toLowerCase()}${unit} across all five ${branches ? "branches" : "months"}?`, "Moderate", [`Sum = ${v.map((row: number[]) => row[c4]).join(" + ")} = ${tot4}.`, `Average = ${tot4} ÷ 5 = ${avg}.`], "Take a working mean (say 300) and average the deviations.", "Dividing by 4 or adding a wrong column."), avg, 6, [], String));
   const [i5, j5] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 2); const t5 = v[i5][0] + v[i5][1] + v[i5][2], u5 = v[j5][0] + v[j5][1] + v[j5][2], diff = Math.abs(t5 - u5);
   out.push(mkN(r, D(`What is the difference between the total of all three categories for ${rowName(i5)} and for ${rowName(j5)}?`, diff === 0 ? "Tricky" : "Moderate", [`${rowName(i5)}: ${v[i5].join(" + ")} = ${t5}.`, `${rowName(j5)}: ${v[j5].join(" + ")} = ${u5}.`, `Difference = ${diff}.`], "Subtract column by column and add the differences, which avoids big totals.", "Adding only two of the three categories."), diff, 10, [], String));
+  return out;
+}
+
+function diLine(r: RNG): Question[] {
+  const years = r() < 0.5;
+  const rowsL = years ? ["2021", "2022", "2023", "2024", "2025"] : ["Jan", "Feb", "Mar", "Apr", "May"];
+  const cols = pick(r, [["Deposits mobilised", "Loans disbursed"], ["Savings accounts opened", "Current accounts opened"], ["Home loans", "Vehicle loans"]]);
+  const unit = cols[0].indexOf("accounts") >= 0 ? "" : " (Rs crore)";
+  const v: number[][] = rowsL.map(() => cols.map(() => 10 * ri(r, 16, 58)));
+  const [ia, ja] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 2).sort((x: number, y: number) => x - y);
+  const base = 40 * ri(r, 4, 10); const pc = pick(r, [10, 20, 25, 30, 40, 50, 60, 75]);
+  v[ia][0] = base; v[ja][0] = base + (base * pc) / 100;
+  const table: DataTable = { chart: "line", title: `${cols[0]} and ${cols[1]}${unit} of a bank, ${years ? "2021–2025" : "January–May 2025"}`, columns: [years ? "Year" : "Month", ...cols], rows: rowsL.map((nm: string, i: number) => [nm, ...v[i].map(String)]) };
+  const D = (q: string, d: Difficulty, e: string[], sc: string, tr: string): Base => ({ ...NB("Data Interpretation", d, q, e, sc, tr), table, variant: "line" });
+  const out: Question[] = [];
+  const [y1, y2, y3] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 3); const s1 = v[y1][1] + v[y2][1] + v[y3][1];
+  out.push(mkN(r, D(`What is the total ${cols[1].toLowerCase()}${unit} in ${rowsL[y1]}, ${rowsL[y2]} and ${rowsL[y3]} together?`, "Easy", [`${v[y1][1]} + ${v[y2][1]} + ${v[y3][1]} = ${s1}.`], "Read the data labels on the line directly; add hundreds first, then tens.", "Reading the value from the other line."), s1, 10, [], String));
+  const i2 = ri(r, 0, 4); let j2 = ri(r, 0, 4); if (j2 === i2) j2 = (j2 + 1) % 5; const A = v[i2][0], Bv = v[j2][1];
+  out.push(finalize(r, D(`What is the ratio of ${cols[0].toLowerCase()} in ${rowsL[i2]} to ${cols[1].toLowerCase()} in ${rowsL[j2]}?`, "Easy", [`${A} : ${Bv}; divide both by ${gcd(A, Bv)}.`, `= ${ratioStr(A, Bv)}.`], "Cancel common zeros, then divide by the HCF.", "Writing the ratio in reverse order."), ratioStr(A, Bv), [ratioStr(Bv, A), ratioStr(A + 10, Bv), ratioStr(A, Bv + 10), ratioStr(A - 10, Bv)]));
+  out.push(mkN(r, D(`By what percent did ${cols[0].toLowerCase()} increase from ${rowsL[ia]} to ${rowsL[ja]}?`, "Moderate", [`Increase = ${v[ja][0]} − ${base} = ${v[ja][0] - base}.`, `% increase = ${v[ja][0] - base} ÷ ${base} × 100 = ${pc}%.`], "Percent change is always on the earlier (base) value.", "Dividing by the later value."), pc, 5, [Math.round(((v[ja][0] - base) / v[ja][0]) * 10000) / 100], pctFmt));
+  const tot = v.reduce((x: number, row: number[]) => x + row[1], 0); const avg = tot / 5;
+  out.push(mkN(r, D(`What is the average ${cols[1].toLowerCase()}${unit} over the five ${years ? "years" : "months"}?`, "Moderate", [`Sum = ${v.map((row: number[]) => row[1]).join(" + ")} = ${tot}.`, `Average = ${tot} ÷ 5 = ${fmtNum(avg)}.`], "Use a working mean and average the deviations.", "Dividing by 4 or picking the wrong line."), avg, 6, [], fmtNum));
+  const cnt = v.filter((row: number[]) => row[1] > row[0]).length;
+  const yrs = rowsL.filter((_: string, i: number) => v[i][1] > v[i][0]);
+  out.push(finalize(r, D(`In how many ${years ? "years" : "months"} were ${cols[1].toLowerCase()} more than ${cols[0].toLowerCase()}?`, "Easy", [`Compare the two lines point by point: ${rowsL.map((nm: string, i: number) => `${nm} ${v[i][1]} vs ${v[i][0]}`).join("; ")}.`, cnt ? `${cols[1]} were higher in ${yrs.join(", ")}: ${cnt}.` : "In no period were they higher: 0."], "Look where the second line lies above the first.", "Counting periods where the values are equal or reversed."), String(cnt), [0, 1, 2, 3, 4, 5].filter((x: number) => x !== cnt).map(String)));
+  return out;
+}
+
+function diPie(r: RNG): Question[] {
+  const names = ["P", "Q", "R", "S", "T"];
+  let pcs: number[] = [];
+  for (let z = 0; z < 200; z++) { pcs = [0, 1, 2, 3].map(() => ri(r, 8, 30)); const last = 100 - pcs.reduce((a: number, b: number) => a + b, 0); if (last >= 8 && last <= 32 && new Set([...pcs, last]).size === 5) { pcs.push(last); break; } pcs = []; }
+  if (pcs.length !== 5) pcs = [24, 16, 28, 12, 20];
+  const k = ri(r, 6, 16); const T = 500 * k;
+  const [noun, verb] = pick(r, [["home loans", "sanctioned"], ["new accounts", "opened"], ["credit cards", "issued"], ["gold loans", "disbursed"]]); const what = `${noun} ${verb}`;
+  const table: DataTable = { chart: "pie", total: T, title: `Percentage distribution of ${T} ${what} by five branches (P–T) of a bank in 2025`, columns: ["Branch", "Share (%)"], rows: names.map((nm: string, i: number) => [nm, String(pcs[i])]) };
+  const D = (q: string, d: Difficulty, e: string[], sc: string, tr: string): Base => ({ ...NB("Data Interpretation", d, q, e, sc, tr), table, variant: "pie" });
+  const val = (i: number): number => (T * pcs[i]) / 100;
+  const out: Question[] = [];
+  const i1 = ri(r, 0, 4);
+  out.push(mkN(r, D(`How many ${noun} were ${verb} by branch ${names[i1]}?`, "Easy", [`${pcs[i1]}% of ${T} = ${T} × ${pcs[i1]} ÷ 100 = ${val(i1)}.`], "1% of the total = total ÷ 100; multiply by the share.", "Using the percentage itself as the number."), val(i1), Math.max(5, k * 5), [], String));
+  const [a2, b2] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 2); const d2 = Math.abs(val(a2) - val(b2));
+  out.push(mkN(r, D(`What is the difference between the number of ${noun} ${verb} by branch ${names[a2]} and by branch ${names[b2]}?`, "Easy", [`Difference in share = |${pcs[a2]} − ${pcs[b2]}| = ${Math.abs(pcs[a2] - pcs[b2])}%.`, `${Math.abs(pcs[a2] - pcs[b2])}% of ${T} = ${d2}.`], "Subtract the percentages first, then convert once.", "Converting both values separately and making an arithmetic slip."), d2, Math.max(5, k * 5), [], String));
+  const [x3, y3, z3] = shuffle(r, [0, 1, 2, 3, 4]).slice(0, 3); const n3 = pcs[x3] + pcs[y3];
+  out.push(finalize(r, D(`What is the ratio of the total ${noun} ${verb} by branches ${names[x3]} and ${names[y3]} together to those ${verb} by branch ${names[z3]}?`, "Moderate", [`(${pcs[x3]} + ${pcs[y3]})% : ${pcs[z3]}% = ${n3} : ${pcs[z3]}.`, `= ${ratioStr(n3, pcs[z3])} (the total cancels).`], "In a pie chart, ratios can be taken directly from the percentages.", "Converting to numbers unnecessarily and making errors."), ratioStr(n3, pcs[z3]), [ratioStr(pcs[z3], n3), ratioStr(n3 + 2, pcs[z3]), ratioStr(n3, pcs[z3] + 3), ratioStr(n3 - 1, pcs[z3])]));
+  const i4 = ri(r, 0, 4); const ang = (36 * pcs[i4]) / 10;
+  out.push(mkN(r, D(`What is the central angle (in degrees) of the sector representing branch ${names[i4]}?`, "Moderate", [`Central angle = share × 360 ÷ 100 = ${pcs[i4]} × 3.6.`, `= ${fmtNum(ang)}°.`], "1% of a pie = 3.6°.", "Multiplying by 3.6 with a decimal slip, or using 100 instead of 360."), ang, 3.6, [], (x: number) => `${fmtNum(Math.round(x * 10) / 10)}°`));
+  const i5 = ri(r, 0, 4); const nx = (6 * k * pcs[i5]);
+  out.push(mkN(r, D(`Next year the total number of ${noun} ${verb} increases by 20% and branch ${names[i5]}'s share remains the same. How many ${noun} will branch ${names[i5]} have ${verb} next year?`, "Tricky", [`This year: ${pcs[i5]}% of ${T} = ${val(i5)}.`, `Next year: ${val(i5)} × 1.2 = ${nx}.`], "Same share ⇒ the branch grows by the same 20% as the total.", "Adding 20 percentage points to the share instead of increasing the total."), nx, Math.max(6, k * 6), [val(i5) + 20, (T * (pcs[i5] + 20)) / 100], String));
+  return out;
+}
+
+function diCaselet(r: RNG): Question[] {
+  const k = ri(r, 3, 8); const P = 120 * k;
+  const fr = pick(r, [[1, 3], [5, 12], [1, 4], [7, 12], [2, 5]]); const Pc = (P * fr[0]) / fr[1], Ps = P - Pc;
+  const inc = pick(r, [20, 25, 50]); const Q = P + (P * inc) / 100;
+  const ratios = shuffle(r, [[3, 2], [7, 5], [5, 3], [2, 1], [5, 4], [4, 3]]); const rq = ratios.find((x: number[]) => Q % (x[0] + x[1]) === 0) || [1, 1];
+  const Qs = (Q / (rq[0] + rq[1])) * rq[0], Qc = Q - Qs;
+  const R = 20 * Math.floor((Q - ri(r, 60, 200)) / 20); const dR = Q - R;
+  const pct = pick(r, [40, 45, 55, 60, 65, 70, 75]); const Rs = (R * pct) / 100, Rc = R - Rs;
+  const city = pick(r, ["Nagpur", "Guntur", "Indore", "Mysuru", "Varanasi", "Nashik"]);
+  const passage = `Three branches P, Q and R of a regional rural bank in ${city} opened savings and current accounts in 2025.\nBranch P opened a total of ${P} accounts, of which ${fr[0]}/${fr[1]} were current accounts and the rest were savings accounts.\nBranch Q opened ${inc}% more accounts than branch P, and the ratio of savings to current accounts in branch Q was ${rq[0]} : ${rq[1]}.\nBranch R opened ${dR} fewer accounts than branch Q, and ${pct}% of the accounts of branch R were savings accounts.`;
+  const sol = [`P: total ${P}; current = ${fr[0]}/${fr[1]} × ${P} = ${Pc}; savings = ${Ps}.`, `Q: total = ${P} × ${(100 + inc) / 100} = ${Q}; savings = ${Q} × ${rq[0]}/${rq[0] + rq[1]} = ${Qs}; current = ${Qc}.`, `R: total = ${Q} − ${dR} = ${R}; savings = ${pct}% of ${R} = ${Rs}; current = ${Rc}.`];
+  const D = (q: string, d: Difficulty, e: string[], sc: string, tr: string): Base => ({ ...NB("Data Interpretation", d, q, e, sc, tr), passageTitle: "Directions: Read the following information carefully and answer the questions that follow.", passage, variant: "caselet" });
+  const SC = "Convert the paragraph into a 3 × 2 table (branch × savings/current) before answering any question.";
+  const out: Question[] = [];
+  const ts = Ps + Qs + Rs;
+  out.push(mkN(r, D("What is the total number of savings accounts opened by the three branches together?", "Moderate", [...sol, `Total savings = ${Ps} + ${Qs} + ${Rs} = ${ts}.`], SC, "Adding total accounts instead of only savings accounts."), ts, 10, [P + Q + R - ts], String));
+  out.push(finalize(r, D("What is the ratio of current accounts opened by branch P to those opened by branch R?", "Moderate", [...sol, `${Pc} : ${Rc} = ${ratioStr(Pc, Rc)}.`], SC, "Using savings accounts of one branch by mistake."), ratioStr(Pc, Rc), [ratioStr(Rc, Pc), ratioStr(Ps, Rs), ratioStr(Pc + 10, Rc), ratioStr(Pc, Rc + 10)]));
+  const d3 = Math.abs(Qs - Pc);
+  out.push(mkN(r, D("What is the difference between the savings accounts of branch Q and the current accounts of branch P?", "Moderate", [...sol, `|${Qs} − ${Pc}| = ${d3}.`], SC, "Comparing savings with savings."), d3, 6, [Math.abs(Qs - Ps)], String));
+  const av = (Pc + Qc) / 2;
+  out.push(mkN(r, D("What is the average number of current accounts opened by branches P and Q?", "Moderate", [...sol, `(${Pc} + ${Qc}) ÷ 2 = ${fmtNum(av)}.`], SC, "Averaging total accounts instead of current accounts."), av, 4, [], fmtNum));
+  const tc = Pc + Qc + Rc;
+  out.push(mkN(r, D("What is the total number of current accounts opened by the three branches together?", "Easy", [...sol, `${Pc} + ${Qc} + ${Rc} = ${tc}.`], SC, "Forgetting to subtract the savings accounts of branch R."), tc, 10, [P + Q + R - tc], String));
   return out;
 }
 
@@ -498,13 +419,15 @@ const ARITH: ((r: RNG) => Question)[] = [
   },
 ];
 
-function buildNumerical(r: RNG): Question[] {
-  const simp = shuffle(r, [...shuffle(r, SIMP).slice(0, 6).map((g: (r: RNG) => Question) => g(r)), ...APPROX.map((g: (r: RNG) => Question) => g(r))]);
+const DI_TYPES = ["bar", "line", "pie", "caselet"];
+function buildNumerical(r: RNG, diType: string): Question[] {
+  const simp = shuffle(r, [...shuffle(r, SIMP).map((g: (r: RNG) => Question) => g(r)), ...[...APPROX, pick(r, APPROX)].map((g: (r: RNG) => Question) => g(r))]);
   const sGens = shuffle(r, SERIES);
   const series = [seriesMissing(r, sGens[0]), seriesMissing(r, sGens[1]), seriesMissing(r, sGens[2]), seriesWrong(r, sGens[3]), seriesWrong(r, sGens[4])];
   const quads = shuffle(r, [0, 1, 2, 3, 4, pick(r, [0, 2, 4]), pick(r, [1, 3])]).slice(0, 5).map((t: number) => quadQ(r, t));
+  const di = diType === "line" ? diLine(r) : diType === "pie" ? diPie(r) : diType === "caselet" ? diCaselet(r) : diQs(r);
   const arith = shuffle(r, ARITH.map((g: (r: RNG) => Question) => g(r)));
-  return [...simp, ...series, ...quads, ...diQs(r), ...arith];
+  return [...simp, ...series, ...quads, ...di, ...arith];
 }
 
 // ================= REASONING =================
@@ -564,7 +487,7 @@ function makeClue(r: RNG, kind: PKind, t: number[], names: string[]): Clue {
   const i = ri(r, 0, n - 1), ti = t[i];
   return { text: `${names[i]} ${posPhrase(kind, ti, n)}.`, ok: (p: number[]) => p[i] === ti, abs: true };
 }
-export interface PuzzleRecord { kind: PKind; names: string[]; t: number[]; clues: Clue[] }
+export interface PuzzleRecord { kind: string; names: string[]; t: number[]; clues: Clue[] }
 export const PUZZLE_LOG: PuzzleRecord[] = [];
 function solvePuzzle(r: RNG, kind: PKind, names: string[]): { t: number[]; clues: string[] } {
   const n = names.length; const all = getPerms(n); const t = all[Math.floor(r() * all.length)];
@@ -592,7 +515,7 @@ function puzzleQs(r: RNG, kind: PKind, names: string[], topic: string): Question
   const title = kind === "row" ? "Puzzle: Linear seating arrangement" : kind === "floor" ? "Puzzle: Floor arrangement" : "Puzzle: Weekly seminar schedule";
   const sc = kind === "row" ? "For people facing north, their left is your left: number the seats 1 to 8 from the left and turn every clue into seat numbers." : kind === "floor" ? "Number floors from the bottom and treat 'above' and 'below' as larger and smaller numbers." : "Write the days as 1 to 7 and treat 'after' and 'before' as larger and smaller numbers.";
   const tr = kind === "row" ? "Reading 'second to the left of' as 'two persons between'." : kind === "floor" ? "Confusing 'immediately above' with 'somewhere above'." : "Counting the two end persons when asked how many are between them.";
-  const base = (q: string, d: Difficulty, line: string): Base => ({ section: "Reasoning", topic, difficulty: d, passageTitle: title, passage, question: q, explanation: ["Place the definite clues first (exact positions, ends, immediate neighbours), then test the remaining cases; exactly one arrangement satisfies every clue.", `Final arrangement, ${arrangement}.`, line], shortcut: sc, commonTrap: tr });
+  const base = (q: string, d: Difficulty, line: string): Base => ({ section: "Reasoning", topic, variant: kind, difficulty: d, passageTitle: title, passage, question: q, explanation: ["Place the definite clues first (exact positions, ends, immediate neighbours), then test the remaining cases; exactly one arrangement satisfies every clue.", `Final arrangement, ${arrangement}.`, line], shortcut: sc, commonTrap: tr });
   const otherNames = (c: string): string[] => shuffle(r, names.filter((x: string) => x !== c));
   const out: Question[] = [];
   const p1 = ri(r, 0, n - 1); const right = kind === "row" && r() < 0.5;
@@ -614,6 +537,135 @@ function puzzleQs(r: RNG, kind: PKind, names: string[], topic: string): Question
   for (let z = 0; z < 20 && (clues.indexOf(truth.text) >= 0 || truth.abs); z++) truth = makeClue(r, kind, t, names);
   const falses: string[] = []; const all = getPerms(n);
   for (let z = 0; z < 400 && falses.length < 4; z++) { const c = makeClue(r, kind, all[Math.floor(r() * all.length)], names); if (!c.ok(t) && falses.indexOf(c.text) < 0) falses.push(c.text); }
+  out.push(finalize(r, base("Which of the following statements is true according to the arrangement?", "Tricky", `Only "${truth.text}" matches the final arrangement; the other statements contradict it.`), truth.text, falses));
+  return out;
+}
+
+// ---------- new puzzle engines: circle (8, facing centre), box stack (7), month-date (3 × 2) ----------
+type PKind2 = "circle" | "box" | "month";
+const SLOTS = ["7 March", "18 March", "7 April", "18 April", "7 May", "18 May"];
+const MONTHS3 = ["March", "April", "May"];
+let CANON8: number[][] | null = null;
+function spaceOf(kind: string, n: number): number[][] {
+  if (kind === "circle") { if (!CANON8 || CANON8[0].length !== n) CANON8 = getPerms(n).filter((p: number[]) => p[0] === 0); return CANON8; }
+  return getPerms(n);
+}
+const NUMS = (k: number, one: string, many: string): string => (k === 1 ? `Only one ${one}` : `${NUMW[k]} ${many}`);
+function makeClue2(r: RNG, kind: PKind2, t: number[], names: string[]): Clue {
+  const n = names.length; const who = (pos: number): number => t.indexOf(pos);
+  const two = (): number[] => { const i = ri(r, 0, n - 1); let j = ri(r, 0, n - 2); if (j >= i) j++; return [i, j]; };
+  if (kind === "circle") {
+    const m = (x: number): number => ((x % n) + n) % n; const wc = (pos: number): number => t.indexOf(m(pos));
+    const ty = pick(r, ["imL", "imR", "kL", "kR", "opp", "nb", "notnb", "btw", "notOpp", "kL", "kR"]);
+    const Y = ri(r, 0, n - 1), y = names[Y];
+    if (ty === "imL") { const X = wc(t[Y] + 1); return { text: `${names[X]} sits immediately to the left of ${y}.`, ok: (p: number[]) => p[X] === m(p[Y] + 1), abs: false }; }
+    if (ty === "imR") { const X = wc(t[Y] - 1); return { text: `${names[X]} sits immediately to the right of ${y}.`, ok: (p: number[]) => p[X] === m(p[Y] - 1), abs: false }; }
+    if (ty === "kL") { const k = pick(r, [2, 3]); const X = wc(t[Y] + k); return { text: `${names[X]} sits ${ORD[k - 1]} to the left of ${y}.`, ok: (p: number[]) => p[X] === m(p[Y] + k), abs: false }; }
+    if (ty === "kR") { const k = pick(r, [2, 3]); const X = wc(t[Y] - k); return { text: `${names[X]} sits ${ORD[k - 1]} to the right of ${y}.`, ok: (p: number[]) => p[X] === m(p[Y] - k), abs: false }; }
+    if (ty === "nb") { const X = wc(t[Y] + pick(r, [1, -1])); return { text: `${names[X]} is an immediate neighbour of ${y}.`, ok: (p: number[]) => { const d = m(p[X] - p[Y]); return d === 1 || d === n - 1; }, abs: false }; }
+    if (ty === "notnb") { const X = (Y + ri(r, 1, n - 1)) % n; const d0 = m(t[X] - t[Y]); if (d0 !== 1 && d0 !== n - 1) return { text: `${names[X]} is not an immediate neighbour of ${y}.`, ok: (p: number[]) => { const d = m(p[X] - p[Y]); return d !== 1 && d !== n - 1; }, abs: false }; }
+    if (ty === "btw") { const k = pick(r, [1, 2]); const Z = wc(t[Y] + k + 1); return { text: `${k === 1 ? "Only one person sits" : "Two persons sit"} between ${y} and ${names[Z]} when counted from the left of ${y}.`, ok: (p: number[]) => p[Z] === m(p[Y] + k + 1), abs: false }; }
+    if (ty === "notOpp") { const X = (Y + ri(r, 1, n - 1)) % n; if (m(t[X] - t[Y]) !== n / 2) return { text: `${names[X]} does not sit opposite ${y}.`, ok: (p: number[]) => m(p[X] - p[Y]) !== n / 2, abs: false }; }
+    const X = wc(t[Y] + n / 2); return { text: `${names[X]} sits opposite ${y}.`, ok: (p: number[]) => p[X] === m(p[Y] + n / 2), abs: false };
+  }
+  if (kind === "box") {
+    const ty = pick(r, ["imA", "imA", "gap", "gapA", "above", "end", "notadj", "cnt", "abs"]);
+    if (ty === "imA") { const Y = who(ri(r, 0, n - 2)), X = who(t[Y] + 1); return { text: `Box ${names[X]} is kept immediately above box ${names[Y]}.`, ok: (p: number[]) => p[X] === p[Y] + 1, abs: false }; }
+    if (ty === "gap") { const [i, j] = two(); const k = Math.abs(t[i] - t[j]) - 1; if (k === 0) return { text: `Box ${names[i]} and box ${names[j]} are kept adjacent to each other.`, ok: (p: number[]) => Math.abs(p[i] - p[j]) === 1, abs: false }; return { text: `${NUMS(k, "box is", "boxes are")} kept between box ${names[i]} and box ${names[j]}.`, ok: (p: number[]) => Math.abs(p[i] - p[j]) - 1 === k, abs: false }; }
+    if (ty === "gapA") { const d = pick(r, [2, 3]); const Y = who(ri(r, 0, n - 1 - d)), X = who(t[Y] + d); return { text: `${d === 2 ? "Only one box is" : "Two boxes are"} kept between box ${names[X]} and box ${names[Y]}, and box ${names[X]} is kept above box ${names[Y]}.`, ok: (p: number[]) => p[X] === p[Y] + d, abs: false }; }
+    if (ty === "above") { let [i, j] = two(); if (t[i] < t[j]) { const z = i; i = j; j = z; } return { text: `Box ${names[i]} is kept somewhere above box ${names[j]}.`, ok: (p: number[]) => p[i] > p[j], abs: false }; }
+    if (ty === "end") { const i = who(pick(r, [0, n - 1])); return { text: `Box ${names[i]} is kept either at the top or at the bottom of the stack.`, ok: (p: number[]) => p[i] === 0 || p[i] === n - 1, abs: false }; }
+    if (ty === "notadj") { const [i, j] = two(); if (Math.abs(t[i] - t[j]) !== 1) return { text: `Box ${names[i]} is not kept adjacent to box ${names[j]}.`, ok: (p: number[]) => Math.abs(p[i] - p[j]) !== 1, abs: false }; }
+    const i = ri(r, 0, n - 1), ti = t[i];
+    if (ty === "cnt") { const k = n - 1 - ti; return { text: k === 0 ? `No box is kept above box ${names[i]}.` : `${NUMS(k, "box is", "boxes are")} kept above box ${names[i]}.`, ok: (p: number[]) => p[i] === ti, abs: true }; }
+    return { text: `Box ${names[i]} is kept ${ordN(ti + 1)} from the bottom.`, ok: (p: number[]) => p[i] === ti, abs: true };
+  }
+  // month-date: slots 0..5 = 7 Mar, 18 Mar, 7 Apr, 18 Apr, 7 May, 18 May
+  const mo = (x: number): number => Math.floor(x / 2);
+  const ty = pick(r, ["imB", "gap", "same", "diffm", "d31", "date", "before", "abs", "same", "date"]);
+  if (ty === "imB") { const X = who(ri(r, 0, n - 2)), Y = who(t[X] + 1); return { text: `${names[Y]} has a meeting immediately after ${names[X]}.`, ok: (p: number[]) => p[Y] === p[X] + 1, abs: false }; }
+  if (ty === "gap") { const [i, j] = two(); const k = Math.abs(t[i] - t[j]) - 1; if (k === 0) return { text: `${names[i]} and ${names[j]} have meetings on consecutive dates.`, ok: (p: number[]) => Math.abs(p[i] - p[j]) === 1, abs: false }; return { text: `${NUMS(k, "person has", "persons have")} a meeting between ${names[i]} and ${names[j]}.`, ok: (p: number[]) => Math.abs(p[i] - p[j]) - 1 === k, abs: false }; }
+  if (ty === "same") { const mm = ri(r, 0, 2); const i = who(2 * mm), j = who(2 * mm + 1); return { text: `${names[i]} and ${names[j]} have meetings in the same month.`, ok: (p: number[]) => mo(p[i]) === mo(p[j]), abs: false }; }
+  if (ty === "diffm") { const [i, j] = two(); if (mo(t[i]) !== mo(t[j])) return { text: `${names[i]} does not have a meeting in the same month as ${names[j]}.`, ok: (p: number[]) => mo(p[i]) !== mo(p[j]), abs: false }; }
+  if (ty === "d31") { const i = ri(r, 0, n - 1); if (mo(t[i]) === 1) return { text: `${names[i]} has a meeting in a month having 30 days.`, ok: (p: number[]) => mo(p[i]) === 1, abs: false }; return { text: `${names[i]} has a meeting in a month having 31 days.`, ok: (p: number[]) => mo(p[i]) !== 1, abs: false }; }
+  if (ty === "date") { const i = ri(r, 0, n - 1); const e = t[i] % 2; return { text: `${names[i]} has a meeting on the ${e ? "18th" : "7th"} of a month.`, ok: (p: number[]) => p[i] % 2 === e, abs: false }; }
+  if (ty === "before") { let [i, j] = two(); if (t[i] > t[j]) { const z = i; i = j; j = z; } return { text: `${names[i]}'s meeting is on some date before ${names[j]}'s.`, ok: (p: number[]) => p[i] < p[j], abs: false }; }
+  const i = ri(r, 0, n - 1), ti = t[i];
+  return { text: `${names[i]} has a meeting on ${SLOTS[ti]}.`, ok: (p: number[]) => p[i] === ti, abs: true };
+}
+function solvePuzzle2(r: RNG, kind: PKind2, names: string[]): { t: number[]; clues: string[] } {
+  const n = names.length; const all = spaceOf(kind, n); const t = all[Math.floor(r() * all.length)];
+  let cands = all; const clues: Clue[] = []; let absN = 0;
+  for (let tries = 0; tries < 400 && cands.length > 1; tries++) {
+    const c = makeClue2(r, kind, t, names);
+    if (clues.some((x: Clue) => x.text === c.text) || (c.abs && absN >= 1)) continue;
+    const nx = cands.filter((p: number[]) => c.ok(p));
+    if (nx.length < cands.length) { clues.push(c); cands = nx; if (c.abs) absN++; }
+  }
+  for (let i = 0; i < n && cands.length > 1; i++) {
+    const ti = t[i];
+    if (!cands.some((p: number[]) => p[i] !== ti)) continue;
+    let c: Clue;
+    if (kind === "circle") { const j = t.indexOf((ti + 1) % n); c = { text: `${names[j]} sits immediately to the left of ${names[i]}.`, ok: (p: number[]) => p[j] === (p[i] + 1) % n, abs: false }; }
+    else if (kind === "box") c = { text: `Box ${names[i]} is kept ${ordN(ti + 1)} from the bottom.`, ok: (p: number[]) => p[i] === ti, abs: true };
+    else c = { text: `${names[i]} has a meeting on ${SLOTS[ti]}.`, ok: (p: number[]) => p[i] === ti, abs: true };
+    if (clues.some((x: Clue) => x.text === c.text)) continue;
+    clues.push(c); cands = cands.filter((p: number[]) => c.ok(p));
+  }
+  const order = shuffle(r, clues);
+  PUZZLE_LOG.push({ kind, names: names.slice(), t: t.slice(), clues: order.slice() });
+  return { t, clues: order.map((c: Clue) => c.text) };
+}
+function puzzleQs2(r: RNG, kind: PKind2, names: string[], topic: string): Question[] {
+  const n = names.length; const { t, clues } = solvePuzzle2(r, kind, names);
+  const m = (x: number): number => ((x % n) + n) % n;
+  const at = (pos: number): string => names[t.indexOf(kind === "circle" ? m(pos) : pos)];
+  const order = Array.from({ length: n }, (_: unknown, p: number) => at(p));
+  const arrangement = kind === "circle" ? `going clockwise (towards each person's left) from ${order[0]}: ${order.join(" → ")} → back to ${order[0]}` : kind === "box" ? `top to bottom: ${order.slice().reverse().join(", ")}` : order.map((x: string, p: number) => `${SLOTS[p]}: ${x}`).join(", ");
+  const intro = kind === "circle" ? `Eight persons ${names.join(", ")} are sitting around a circular table, all facing the centre, not necessarily in the same order.` : kind === "box" ? `Seven boxes ${names.join(", ")} are kept one above the other in a single stack, not necessarily in the same order. The bottom-most box is position 1 and the top-most box is position 7.` : `Six persons ${names.join(", ")} have meetings on six different dates — on the 7th and the 18th of March, April and May of the same year — not necessarily in the same order. Only one person has a meeting on each date.`;
+  const passage = `${intro}\n\n${clues.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`;
+  const title = kind === "circle" ? "Puzzle: Circular seating (facing centre)" : kind === "box" ? "Puzzle: Box stack" : "Puzzle: Month and date schedule";
+  const sc = kind === "circle" ? "Facing the centre, a person's LEFT is clockwise and RIGHT is anticlockwise. Fix one person at the top and place everyone else relative to them." : kind === "box" ? "Draw positions 1 (bottom) to 7 (top); fix the definite positions first, then 'immediately above' pairs." : "Draw a 6-row table: Mar 7, Mar 18, Apr 7, Apr 18, May 7, May 18. March and May have 31 days, April has 30.";
+  const tr = kind === "circle" ? "Using your own left instead of the seated person's left (they face the centre)." : kind === "box" ? "Counting the box itself when asked how many boxes are above it." : "Forgetting that April has only 30 days, or treating '18th' as the second month.";
+  const base = (q: string, d: Difficulty, line: string): Base => ({ section: "Reasoning", topic, variant: kind, difficulty: d, passageTitle: title, passage, question: q, explanation: ["Fix the definite clues first, branch into cases on the rest, and eliminate cases that break any clue; exactly one arrangement survives.", `Final arrangement, ${arrangement}.`, line], shortcut: sc, commonTrap: tr });
+  const others = (c: string): string[] => shuffle(r, names.filter((x: string) => x !== c));
+  const idx = shuffle(r, Array.from({ length: n }, (_: unknown, i: number) => i));
+  const out: Question[] = [];
+  const cntQ = (q: string, k: number, line: string): Question => { const st = Math.max(0, Math.min(k - ri(r, 0, 4), n - 6)); return finalize(r, base(q, "Moderate", line), NUMW[k], [0, 1, 2, 3, 4, 5].map((d: number) => NUMW[st + d]).filter((w: string) => w !== NUMW[k])); };
+  if (kind === "circle") {
+    const X1 = idx[0]; const a1 = at(t[X1] + n / 2);
+    out.push(finalize(r, base(`Who sits opposite ${names[X1]}?`, "Easy", `Opposite ${names[X1]} (4 seats away) is ${a1}.`), a1, others(a1).filter((x: string) => x !== names[X1])));
+    const X2 = idx[1], k2 = pick(r, [2, 3]); const a2 = at(t[X2] + k2);
+    out.push(finalize(r, base(`Who sits ${ORD[k2 - 1]} to the left of ${names[X2]}?`, "Moderate", `Move ${k2} seats clockwise from ${names[X2]}: ${a2}.`), a2, others(a2).filter((x: string) => x !== names[X2]).concat([at(t[X2] - k2)]).reverse()));
+    const X3 = idx[2]; const a3 = at(t[X3] - 1);
+    out.push(finalize(r, base(`Who sits immediately to the right of ${names[X3]}?`, "Moderate", `One seat anticlockwise from ${names[X3]} is ${a3}.`), a3, [at(t[X3] + 1), ...others(a3).filter((x: string) => x !== names[X3])]));
+    const X4 = idx[3], Y4 = idx[4]; const k4 = m(t[Y4] - t[X4]) - 1;
+    out.push(cntQ(`How many persons sit between ${names[X4]} and ${names[Y4]} when counted from the left of ${names[X4]}?`, k4, `Going clockwise from ${names[X4]} to ${names[Y4]}: ${k4 === 0 ? "nobody in between" : Array.from({ length: k4 }, (_: unknown, z: number) => at(t[X4] + 1 + z)).join(", ")} — ${NUMW[k4]}.`));
+  } else if (kind === "box") {
+    const p1 = ri(r, 0, n - 1); const a1 = at(p1);
+    out.push(finalize(r, base(p1 === n - 1 ? "Which box is kept at the top of the stack?" : p1 === 0 ? "Which box is kept at the bottom of the stack?" : `Which box is kept ${ordN(p1 + 1)} from the bottom?`, "Easy", `Position ${p1 + 1} holds box ${a1}.`), a1, others(a1)));
+    let [i2, j2] = [idx[0], idx[1]]; for (let z = 0; z < 10 && Math.abs(t[i2] - t[j2]) < 2; z++) [i2, j2] = shuffle(r, idx).slice(0, 2);
+    const k2 = Math.abs(t[i2] - t[j2]) - 1;
+    out.push(cntQ(`How many boxes are kept between box ${names[i2]} and box ${names[j2]}?`, k2, `Between them: ${k2 === 0 ? "none" : order.slice(Math.min(t[i2], t[j2]) + 1, Math.max(t[i2], t[j2])).join(", ")} — ${NUMW[k2]}.`));
+    const p3 = ri(r, 1, n - 1); const X3 = at(p3), a3 = at(p3 - 1);
+    out.push(finalize(r, base(`Which box is kept immediately below box ${X3}?`, "Moderate", `Below ${X3} (position ${p3 + 1}) is ${a3}.`), a3, [p3 < n - 1 ? at(p3 + 1) : at(0), ...others(a3).filter((x: string) => x !== X3)]));
+    const X4 = idx[2]; const k4 = n - 1 - t[X4];
+    out.push(cntQ(`How many boxes are kept above box ${names[X4]}?`, k4, `Box ${names[X4]} is at position ${t[X4] + 1}, so ${n} − ${t[X4] + 1} = ${k4} boxes are above it.`));
+  } else {
+    const p1 = ri(r, 0, n - 1); const a1 = at(p1);
+    out.push(finalize(r, base(`Who has a meeting on ${SLOTS[p1]}?`, "Easy", `${SLOTS[p1]}: ${a1}.`), a1, others(a1)));
+    const X2 = idx[0]; const a2 = SLOTS[t[X2]];
+    out.push(finalize(r, base(`On which date does ${names[X2]} have a meeting?`, "Moderate", `${names[X2]}: ${a2}.`), a2, shuffle(r, SLOTS.filter((x: string) => x !== a2))));
+    let [i3, j3] = [idx[1], idx[2]]; for (let z = 0; z < 10 && Math.abs(t[i3] - t[j3]) < 2; z++) [i3, j3] = shuffle(r, idx).slice(0, 2);
+    const k3 = Math.abs(t[i3] - t[j3]) - 1;
+    out.push(cntQ(`How many persons have meetings between ${names[i3]} and ${names[j3]}?`, k3, `Between them: ${k3 === 0 ? "nobody" : order.slice(Math.min(t[i3], t[j3]) + 1, Math.max(t[i3], t[j3])).join(", ")} — ${NUMW[k3]}.`));
+    const X4 = idx[3]; const a4 = at(t[X4] ^ 1);
+    out.push(finalize(r, base(`Who has a meeting in the same month as ${names[X4]}?`, "Moderate", `${names[X4]}'s month is ${MONTHS3[Math.floor(t[X4] / 2)]}; the other person that month is ${a4}.`), a4, others(a4).filter((x: string) => x !== names[X4])));
+  }
+  let truth = makeClue2(r, kind, t, names);
+  for (let z = 0; z < 30 && (clues.indexOf(truth.text) >= 0 || truth.abs); z++) truth = makeClue2(r, kind, t, names);
+  const falses: string[] = []; const all = spaceOf(kind, n);
+  for (let z = 0; z < 600 && falses.length < 4; z++) { const c = makeClue2(r, kind, all[Math.floor(r() * all.length)], names); if (!c.ok(t) && falses.indexOf(c.text) < 0) falses.push(c.text); }
   out.push(finalize(r, base("Which of the following statements is true according to the arrangement?", "Tricky", `Only "${truth.text}" matches the final arrangement; the other statements contradict it.`), truth.text, falses));
   return out;
 }
@@ -786,23 +838,42 @@ function bloodQ(r: RNG, k: number): Question {
   const tpl = T[k % T.length];
   return finalize(r, RB("Blood Relation", "Moderate", tpl.q, tpl.e, "Draw a quick family tree with + for male and − for female; decode 'only son' first.", "Assuming a gender that the question never states, or treating 'only son' as a different person."), tpl.a, shuffle(r, RELS.filter((x: string) => x !== tpl.a)));
 }
-function buildReasoning(r: RNG): Question[] {
-  const letters = shuffle(r, "ABCDEFGHJKLMNPQRSTUVWXYZ".split("")).slice(0, 8).sort();
+const PUZZLE_KINDS = ["row", "floor", "week", "circle", "box", "month"];
+function buildReasoning(r: RNG, kinds: string[]): Question[] {
+  const letters = shuffle(r, "ABCDEFGHJKLMNPQRSTUVWXYZ".split(""));
   const pool = shuffle(r, NAMES);
-  return [
-    ...puzzleQs(r, "row", letters, "Linear Seating"),
-    ...ineqQs(r),
-    ...puzzleQs(r, "floor", pool.slice(0, 7).sort(), "Floor Puzzle"),
-    ...sylQs(r),
-    ...puzzleQs(r, "week", pool.slice(7, 14).sort(), "Scheduling Puzzle"),
-    ...alphaQs(r),
-    ...(() => { const bi = ri(r, 0, 6); return [bloodQ(r, bi), bloodQ(r, bi + ri(r, 1, 6))]; })(), ...directionQs(r, pool.slice(14)), pick(r, codingQs(r)),
-  ];
+  let li = 0, pi = 0;
+  const L = (k: number): string[] => { const x = letters.slice(li, li + k).sort(); li += k; if (li > 16) li = 0; return x; };
+  const P = (k: number): string[] => { const x = pool.slice(pi, pi + k).sort(); pi += k; if (pi > 16) pi = 0; return x; };
+  const puzzle = (kind: string): Question[] => {
+    if (kind === "row") return puzzleQs(r, "row", L(8), "Linear Seating");
+    if (kind === "floor") return puzzleQs(r, "floor", P(7), "Floor Puzzle");
+    if (kind === "week") return puzzleQs(r, "week", P(7), "Scheduling Puzzle");
+    if (kind === "circle") return puzzleQs2(r, "circle", L(8), "Circular Seating");
+    if (kind === "box") return puzzleQs2(r, "box", L(7), "Box Stack Puzzle");
+    return puzzleQs2(r, "month", P(6), "Month-Date Puzzle");
+  };
+  const pz = kinds.map(puzzle);
+  const misc = (() => { const bi = ri(r, 0, 6); const dn = shuffle(r, NAMES).slice(0, 2); return [bloodQ(r, bi), bloodQ(r, bi + ri(r, 1, 6)), ...directionQs(r, dn), pick(r, codingQs(r))]; })();
+  return [...ineqQs(r), ...pz[0], ...sylQs(r), ...pz[1], ...alphaQs(r), ...pz[2], ...misc, ...pz[3]];
 }
 
+/** Daily shifts (1–3) rotate puzzle engines and DI types deterministically from the date; fresh tests (4+) pick from their own seed. */
+function paperPlan(dateKey: string, testNo: number, dayHash: number): { kinds: string[]; diType: string } {
+  const seed = hashStr(`${dateKey}#${testNo}`);
+  const r = mulberry32(seed ^ 0x5151);
+  if (testNo <= 3) {
+    const dayOrder = shuffle(mulberry32(dayHash ^ 0x777), PUZZLE_KINDS);
+    const kinds = [0, 1, 2, 3].map((k: number) => dayOrder[(2 * (testNo - 1) + k) % 6]);
+    const dayIdx = Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000);
+    return { kinds: shuffle(r, kinds), diType: DI_TYPES[(((dayIdx * 3 + testNo - 1) % 4) + 4) % 4] };
+  }
+  return { kinds: shuffle(r, PUZZLE_KINDS).slice(0, 4), diType: pick(r, DI_TYPES) };
+}
 function generatePaper(dateKey: string, testNo: number, dayHash: number): Question[] {
   const seed = hashStr(`${dateKey}#${testNo}`);
-  return [...buildEnglish(mulberry32(seed ^ 0x1111), testNo, dayHash), ...buildNumerical(mulberry32(seed ^ 0x2222)), ...buildReasoning(mulberry32(seed ^ 0x3333))];
+  const plan = paperPlan(dateKey, testNo, dayHash);
+  return [...buildReasoning(mulberry32(seed ^ 0x3333), plan.kinds), ...buildNumerical(mulberry32(seed ^ 0x2222), plan.diType)];
 }
 
 // ================= analysis =================
@@ -837,5 +908,5 @@ function quadOf(g: GroupStat): Quad | null {
 const QUAD_TONE: Record<Quad, Tone> = { "Fast & Accurate": "success", "Slow & Accurate": "warning", "Fast & Guessy": "danger", "Time Sink": "danger" };
 
 
-export { generatePaper, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TARGET, SEC_LIMIT, LETTERS, SHIFTS, shiftName, groupBy, netOf, accOf, fmtNum, fmtClock, fmtDur, estPercentile, quadOf, hashStr, getPerms };
+export { generatePaper, paperPlan, spaceOf, PUZZLE_KINDS, DI_TYPES, SEC_TIME, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TARGET, SEC_LIMIT, LETTERS, SHIFTS, shiftName, groupBy, netOf, accOf, fmtNum, fmtClock, fmtDur, estPercentile, quadOf, hashStr, getPerms };
 export type { Question, SectionKey, Difficulty, DataTable, QR, GroupStat, Quad, QStatus, Tone, Clue, PKind };

@@ -1,4 +1,5 @@
 import type { SectionKey } from './gen/engine';
+import type { TopicStat } from './analysis';
 
 export interface HistoryEntry {
   id: string;
@@ -7,6 +8,8 @@ export interface HistoryEntry {
   testNo: number;
   label: string;
   mode: 'strict' | 'free';
+  exam?: 'rrb-clerk'; // missing on legacy (100-mark) attempts
+  maxMarks?: number;
   net: number;
   correct: number;
   wrong: number;
@@ -14,8 +17,9 @@ export interface HistoryEntry {
   attempted: number;
   accuracy: number;
   timeSec: number;
-  sections: Record<SectionKey, { net: number; correct: number; wrong: number; attempted: number }>;
+  sections: Partial<Record<string, { net: number; correct: number; wrong: number; attempted: number }>>;
   weakTopics: string[];
+  topicStats?: TopicStat[];
 }
 
 const HKEY = 'bcm.history.v1';
@@ -38,18 +42,37 @@ function safeSet(key: string, v: unknown) {
   }
 }
 
-export const loadHistory = (): HistoryEntry[] => safeGet<HistoryEntry[]>(HKEY, []);
+export const isRRB = (h: HistoryEntry) => h.exam === 'rrb-clerk';
+export const loadHistory = (): HistoryEntry[] => {
+  const h = safeGet<HistoryEntry[]>(HKEY, []);
+  return Array.isArray(h) ? h.filter((x) => x && typeof x.net === 'number' && typeof x.id === 'string') : [];
+};
 export function saveHistory(e: HistoryEntry) {
   const h = loadHistory().filter((x) => x.id !== e.id);
   h.push(e);
-  safeSet(HKEY, h.slice(-200));
+  safeSet(HKEY, h.slice(-300));
 }
 export function clearHistory() {
   safeSet(HKEY, []);
 }
+export function exportHistoryJSON(): string {
+  return JSON.stringify({ app: 'rrb-clerk-mock', version: 2, exportedAt: new Date().toISOString(), history: loadHistory() }, null, 2);
+}
+/** Merge imported attempts (by id). Returns number of new attempts added. */
+export function importHistoryJSON(text: string): number {
+  const data = JSON.parse(text);
+  const list: HistoryEntry[] = Array.isArray(data) ? data : data?.history;
+  if (!Array.isArray(list)) throw new Error('No attempt history found in this file.');
+  const cur = loadHistory();
+  const ids = new Set(cur.map((x) => x.id));
+  const fresh = list.filter((x) => x && typeof x.id === 'string' && typeof x.net === 'number' && !ids.has(x.id));
+  const merged = [...cur, ...fresh].sort((a, b) => a.at.localeCompare(b.at));
+  safeSet(HKEY, merged.slice(-300));
+  return fresh.length;
+}
 
-export interface Prefs { name: string; mode: 'strict' | 'free' }
-export const loadPrefs = (): Prefs => safeGet<Prefs>(PKEY, { name: '', mode: 'strict' });
+export interface Prefs { name: string; mode: 'strict' | 'free'; fontScale?: number }
+export const loadPrefs = (): Prefs => ({ name: '', mode: 'strict', fontScale: 1, ...safeGet<Partial<Prefs>>(PKEY, {}) });
 export const savePrefs = (p: Prefs) => safeSet(PKEY, p);
 
 export function nextFreshTestNo(dateKey: string): number {
@@ -66,3 +89,14 @@ export function todayKey(d = new Date()): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+/** Consecutive days (ending today or yesterday) with at least one RRB attempt. */
+export function dailyStreak(history: HistoryEntry[], today = todayKey()): number {
+  const days = new Set(history.filter(isRRB).map((h) => h.dateKey));
+  const d = new Date(today + 'T00:00:00');
+  if (!days.has(todayKey(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (days.has(todayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+export type { SectionKey };

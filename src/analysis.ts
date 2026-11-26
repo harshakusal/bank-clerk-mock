@@ -38,26 +38,23 @@ export function computeResults(qs: Question[], answers: (number | null)[], times
   };
 }
 
-/** Indicative sectional cut-offs (IBPS/SBI Clerk Prelims recent trend, general category). */
-export const SECTION_CUTOFF: Record<SectionKey, number> = { English: 8, Numerical: 9, Reasoning: 10 };
-export const OVERALL_BAND = { low: 72, high: 78 };
+/** Indicative sectional qualifying marks for IBPS RRB Clerk (Office Assistant) Prelims practice. */
+export const SECTION_CUTOFF: Record<SectionKey, number> = { Reasoning: 14, Numerical: 10 };
+export const MAX_MARKS = 80;
+export const OVERALL_BAND = { low: 64, high: 71 };
 
 export function readiness(net: number, total: number) {
-  const scaled = (net / total) * 100;
-  if (scaled >= OVERALL_BAND.high + 4) return { label: 'Safe zone: comfortably above the 72–78 cut-off band', tone: 'good' as const };
-  if (scaled >= OVERALL_BAND.low) return { label: 'Borderline: inside the 72–78 cut-off band — push 5–8 more marks', tone: 'warn' as const };
-  if (scaled >= 60) return { label: `Below cut-off by ~${fmtNum(OVERALL_BAND.low - scaled)} marks — reachable in 1–2 weeks of focused practice`, tone: 'warn' as const };
-  return { label: `Far below the 72–78 band (need +${fmtNum(OVERALL_BAND.low - scaled)}) — rebuild basics and accuracy first`, tone: 'bad' as const };
+  const scaled = (net / total) * MAX_MARKS;
+  if (scaled >= OVERALL_BAND.high) return { label: `Safe Zone: ${fmtNum(scaled)}/80 — at or above 71, comfortably clear of recent RRB Clerk cut-offs`, tone: 'good' as const };
+  if (scaled >= OVERALL_BAND.low) return { label: `Borderline (64–70.75): ${fmtNum(scaled)}/80 — push ${fmtNum(OVERALL_BAND.high - scaled)} more marks for the Safe Zone`, tone: 'warn' as const };
+  return { label: `Needs Speed & Accuracy Work: ${fmtNum(scaled)}/80 — need +${fmtNum(OVERALL_BAND.low - scaled)} to reach the 64 borderline`, tone: 'bad' as const };
 }
 
+export interface TopicStat { topic: string; section: SectionKey; total: number; attempted: number; correct: number; wrong: number; timeSec: number }
+export const topicStatsOf = (res: ExamResult): TopicStat[] =>
+  res.topics.map((t) => ({ topic: t.label, section: t.section, total: t.total, attempted: t.correct + t.wrong, correct: t.correct, wrong: t.wrong, timeSec: t.time }));
+
 const TOPIC_TIPS: Record<string, string> = {
-  'Reading Comprehension': 'Read the questions before the passage; locate the keyword, then answer strictly from the text. Practise 2 passages daily with a 6-minute cap.',
-  'Cloze Test': 'Read the full passage once before filling; check grammar (part of speech, preposition) before meaning.',
-  'Error Spotting': 'Revise subject-verb agreement, tense consistency, prepositions (since/for), and pronoun cases. Do 20 sentences daily.',
-  'Para Jumbles': 'Find the opener (no pronoun/connector) and the conclusion first; then link pronouns and connectors.',
-  'Phrase Replacement': 'Check tense and idiomatic usage; eliminate options that change the meaning.',
-  'Word Swap': 'Look for nouns/verbs that are in each other’s place; read the sentence after each swap.',
-  'Misspelt Words': 'Revise a list of 150 commonly misspelt words (accommodation, committee, occurrence...).',
   Simplification: 'Memorise squares to 30, cubes to 20, and percentage–fraction equivalents; do 25 questions in 10 minutes daily.',
   Approximation: 'Round every number first and use option gaps; never do exact decimals.',
   'Number Series': 'Check differences → ratios → ×n±k → squares/cubes/primes in that order; solve 15 series daily.',
@@ -83,6 +80,9 @@ const TOPIC_TIPS: Record<string, string> = {
   'Alphanumeric Series': 'Convert “from the right” using (N + 1 − k); tick matches in one left-to-right scan.',
   'Blood Relation': 'Draw a family tree with gender symbols; decode “only son/daughter” first.',
   'Direction Sense': 'Track (x, y) after every leg; right = clockwise turn.',
+  'Circular Seating': 'Facing the centre: left = clockwise. Fix one person, then place the rest with opposite/neighbour clues.',
+  'Box Stack Puzzle': 'Number positions 1 (bottom) to 7 (top); “k boxes above X” fixes X at position 7 − k.',
+  'Month-Date Puzzle': 'Draw Mar 7 / Mar 18 / Apr 7 / Apr 18 / May 7 / May 18; April is the only 30-day month.',
   'Coding-Decoding': 'Check letter shifts of the first two letters; memorise EJOTY positions.',
 };
 export const tipFor = (topic: string) => TOPIC_TIPS[topic] || 'Revise the concept and practise 15 timed questions.';
@@ -131,7 +131,7 @@ export function buildInsights(res: ExamResult, qs: Question[]): Insights {
   if (easyWrong >= 3) patterns.push(`${easyWrong} Easy-level questions went wrong — these are silly mistakes; re-check calculations and option letters.`);
   if (hardWrong >= 3) patterns.push(`${hardWrong} Tricky questions went wrong — attempt them only in the second pass after the sure-shot ones.`);
   if (markedWrong >= 2) patterns.push(`${markedWrong} answers marked for review turned out wrong — when unsure, your first instinct was weak; revisit concepts rather than guessing.`);
-  if (res.skipped > 30) patterns.push(`${res.skipped} questions were skipped. Clerk cut-offs need ~75 attempts with 90%+ accuracy — increase attempts in your strong topics first.`);
+  if (res.skipped > 20) patterns.push(`${res.skipped} questions were skipped. RRB Clerk Safe Zone needs ~74+ attempts with 92%+ accuracy — increase attempts in your strong topics first.`);
   for (const s of res.sections) {
     const cut = SECTION_CUTOFF[s.label as SectionKey];
     if (netOf(s) < cut) patterns.push(`${SECTION_LABEL[s.label as SectionKey]} net ${fmtNum(netOf(s))} is below the typical sectional cut-off (~${cut}) — sectional cut-offs can eliminate you even with a good total.`);
@@ -142,22 +142,21 @@ export function buildInsights(res: ExamResult, qs: Question[]): Insights {
   const secByNet = res.sections.slice().sort((a, b) => netOf(a) / a.total - netOf(b) / b.total);
   const weakSec = secByNet[0]?.label as SectionKey | undefined;
   const nextTest: string[] = [
-    'English (20 min): Cloze, Error Spotting, Phrase Replacement first (~8 min), then Para Jumbles, then RC last.',
-    'Numerical (20 min): Simplification/Approximation (6 min) → Quadratics (3 min) → Series (3 min) → DI → Arithmetic.',
-    'Reasoning (20 min): Inequality, Syllogism, Alphanumeric, Coding, Direction, Blood Relation first (~9 min), then the 3 puzzles (choose the easiest first).',
+    'Reasoning (25 min): Inequality, Syllogism, Alphanumeric, Coding, Direction & Blood Relation first (~9 min), then the 4 puzzles — easiest type first (box/floor/month before circular).',
+    'Numerical (20 min): 15 Simplification/Approximation in ~6 min → Quadratics (3 min) → Series (3 min) → DI (4 min) → Arithmetic with the time left.',
     `Target for the next test: ${Math.min(100, Math.round(res.attempted + 6))} attempts with ≥ ${Math.max(85, Math.round(res.accuracy) + 3)}% accuracy.`,
   ];
   if (weakSec) nextTest.push(`Give the first 2 minutes of ${SECTION_LABEL[weakSec]} to its easiest question types to secure the sectional cut-off.`);
 
-  const w = (i: number) => weakest[i % Math.max(1, weakest.length)] || ['Simplification', 'Puzzles', 'Error Spotting'][i % 3];
+  const w = (i: number) => weakest[i % Math.max(1, weakest.length)] || ['Simplification', 'Circular Seating', 'Quadratic Equations'][i % 3];
   const roadmap = [
     { day: 'Day 1', plan: `Concept repair: ${w(0)} — ${tipFor(w(0))}` },
     { day: 'Day 2', plan: `Concept repair: ${w(1)} — ${tipFor(w(1))}` },
     { day: 'Day 3', plan: 'Speed day: 30 simplification + 15 approximation + 15 series in 25 min; 3 puzzles in 15 min.' },
-    { day: 'Day 4', plan: `Concept repair: ${w(2)}. Plus 2 RC passages and 20 error-spotting sentences.` },
+    { day: 'Day 4', plan: `Concept repair: ${w(2)}. Plus 2 puzzles of a type you have not mastered (circular / month-date).` },
     { day: 'Day 5', plan: 'Take all 3 daily mocks on this platform; analyse every wrong answer for 30 minutes.' },
-    { day: 'Day 6', plan: 'Sectional drills: 3 × 20-min sections at full exam pressure; retry wrong & skipped from earlier mocks.' },
-    { day: 'Day 7', plan: 'Full mock + revision of formula sheet, idioms list and syllogism rules. Rest well.' },
+    { day: 'Day 6', plan: 'Sectional drills: Reasoning 25 min + Quant 20 min at full exam pressure; retry wrong & skipped from earlier mocks.' },
+    { day: 'Day 7', plan: 'Full 80-question mock + revision of formula sheet, squares/cubes and syllogism rules. Rest well.' },
   ];
   void qs;
   return { strengths, fixes, quadrants, patterns, nextTest, roadmap };
