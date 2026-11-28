@@ -1,5 +1,17 @@
+import { createAdvanced, MOD_PUZZLE_KINDS, HARD_PUZZLE_KINDS } from "./advanced";
 type SectionKey = "Reasoning" | "Numerical";
 type Difficulty = "Easy" | "Moderate" | "Tricky";
+type PaperLevel = "Easy" | "Moderate" | "Hard";
+const PAPER_LEVELS: PaperLevel[] = ["Easy", "Moderate", "Hard"];
+const LEVEL_LABEL: Record<PaperLevel, string> = { Easy: "Easy", Moderate: "Moderate", Hard: "Hard" };
+const LEVEL_BLURB: Record<PaperLevel, string> = {
+  Easy: "Gentler practice — shorter calculations and more direct clues. Use this to build speed and confidence.",
+  Moderate: "Real-exam level — recent IBPS RRB Clerk / IBPS Clerk Prelims standard. Default, and tougher than the earlier papers on this site.",
+  Hard: "Tougher than the real Prelims — two-variable puzzles, coded reasoning, missing-data DI and combined arithmetic."
+};
+
+let adv!: ReturnType<typeof createAdvanced>;
+
 type Phase = "start" | "instructions" | "exam" | "result";
 type QStatus = "correct" | "wrong" | "skipped";
 type StatusFilter = "all" | "wrong" | "skipped" | "correct" | "marked";
@@ -26,8 +38,8 @@ const SEC_TARGET: Record<SectionKey, number> = { Reasoning: 37, Numerical: 30 };
 const SEC_LIMIT = 1200;
 const LETTERS = ["A", "B", "C", "D", "E"];
 const SHIFTS = ["Morning Shift", "Afternoon Shift", "Evening Shift"];
-const ORD = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
-const NUMW = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+const ORD = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth"];
+const NUMW = ["None", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven"];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const NAMES = ["Amit", "Bhavna", "Chetan", "Deepa", "Esha", "Farhan", "Gopal", "Hema", "Irfan", "Jaya", "Kiran", "Lata", "Mohan", "Neha", "Om", "Pooja", "Ravi", "Sara", "Tarun", "Uma", "Varun", "Yash", "Zoya", "Nikhil"];
 const MALES = ["Rahul", "Arjun", "Vikram", "Sanjay", "Manoj", "Karan", "Dev", "Rohit"];
@@ -69,7 +81,7 @@ const FILLERS = ["None of these", "Cannot be determined", "Data inadequate", "Mo
 function finalize(r: RNG, b: Base, correct: string, wrong: string[]): Question {
   const seen: string[] = [correct];
   const w: string[] = [];
-  wrong.forEach((x: string) => { if (w.length < 4 && seen.indexOf(x) < 0) { seen.push(x); w.push(x); } });
+  wrong.forEach((x: string) => { if (x && w.length < 4 && seen.indexOf(x) < 0) { seen.push(x); w.push(x); } });
   FILLERS.forEach((x: string) => { if (w.length < 4 && seen.indexOf(x) < 0) { seen.push(x); w.push(x); } });
   const opts = shuffle(r, [correct, ...w]);
   return { ...b, options: opts, correctIndex: opts.indexOf(correct) };
@@ -420,14 +432,16 @@ const ARITH: ((r: RNG) => Question)[] = [
 ];
 
 const DI_TYPES = ["bar", "line", "pie", "caselet"];
-function buildNumerical(r: RNG, diType: string): Question[] {
-  const simp = shuffle(r, [...shuffle(r, SIMP).map((g: (r: RNG) => Question) => g(r)), ...[...APPROX, pick(r, APPROX)].map((g: (r: RNG) => Question) => g(r))]);
-  const sGens = shuffle(r, SERIES);
-  const series = [seriesMissing(r, sGens[0]), seriesMissing(r, sGens[1]), seriesMissing(r, sGens[2]), seriesWrong(r, sGens[3]), seriesWrong(r, sGens[4])];
-  const quads = shuffle(r, [0, 1, 2, 3, 4, pick(r, [0, 2, 4]), pick(r, [1, 3])]).slice(0, 5).map((t: number) => quadQ(r, t));
-  const di = diType === "line" ? diLine(r) : diType === "pie" ? diPie(r) : diType === "caselet" ? diCaselet(r) : diQs(r);
-  const arith = shuffle(r, ARITH.map((g: (r: RNG) => Question) => g(r)));
-  return [...simp, ...series, ...quads, ...di, ...arith];
+function buildNumerical(r: RNG, diType: string, level: PaperLevel = "Moderate"): Question[] {
+  return adv.buildNumericalLevel(r, diType, level, () => {
+    const simp = shuffle(r, [...shuffle(r, SIMP).map((g: (r: RNG) => Question) => g(r)), ...[...APPROX, pick(r, APPROX)].map((g: (r: RNG) => Question) => g(r))]);
+    const sGens = shuffle(r, SERIES);
+    const series = [seriesMissing(r, sGens[0]), seriesMissing(r, sGens[1]), seriesMissing(r, sGens[2]), seriesWrong(r, sGens[3]), seriesWrong(r, sGens[4])];
+    const quads = shuffle(r, [0, 1, 2, 3, 4, pick(r, [0, 2, 4]), pick(r, [1, 3])]).slice(0, 5).map((t: number) => quadQ(r, t));
+    const di = diType === "line" ? diLine(r) : diType === "pie" ? diPie(r) : diType === "caselet" ? diCaselet(r) : diQs(r);
+    const arith = shuffle(r, ARITH.map((g: (r: RNG) => Question) => g(r)));
+    return [...simp, ...series, ...quads, ...di, ...arith];
+  });
 }
 
 // ================= REASONING =================
@@ -487,7 +501,7 @@ function makeClue(r: RNG, kind: PKind, t: number[], names: string[]): Clue {
   const i = ri(r, 0, n - 1), ti = t[i];
   return { text: `${names[i]} ${posPhrase(kind, ti, n)}.`, ok: (p: number[]) => p[i] === ti, abs: true };
 }
-export interface PuzzleRecord { kind: string; names: string[]; t: number[]; clues: Clue[] }
+export interface PuzzleRecord { kind: string; names: string[]; t: number[]; clues: Clue[]; solutions?: () => number }
 export const PUZZLE_LOG: PuzzleRecord[] = [];
 function solvePuzzle(r: RNG, kind: PKind, names: string[]): { t: number[]; clues: string[] } {
   const n = names.length; const all = getPerms(n); const t = all[Math.floor(r() * all.length)];
@@ -509,11 +523,13 @@ function puzzleQs(r: RNG, kind: PKind, names: string[], topic: string): Question
   const n = names.length; const { t, clues } = solvePuzzle(r, kind, names);
   const at = (pos: number): string => names[t.indexOf(pos)];
   const order = Array.from({ length: n }, (_: unknown, p: number) => at(p));
-  const arrangement = kind === "row" ? `left to right: ${order.join(", ")}` : kind === "floor" ? `floor 7 (top) to floor 1: ${order.slice().reverse().join(", ")}` : order.map((x: string, p: number) => `${DAYS[p]}: ${x}`).join(", ");
-  const intro = kind === "row" ? `Eight persons ${names.join(", ")} sit in a straight row, all facing north, not necessarily in the same order.` : kind === "floor" ? `Seven persons ${names.join(", ")} live on different floors of a seven-storey building. The bottom floor is numbered 1 and the top floor is numbered 7.` : `Seven persons ${names.join(", ")} attend a seminar on different days of the same week, from Monday to Sunday.`;
+  const arrangement = kind === "row" ? `left to right: ${order.join(", ")}` : kind === "floor" ? `floor ${n} (top) to floor 1: ${order.slice().reverse().join(", ")}` : order.map((x: string, p: number) => `${DAYS[p]}: ${x}`).join(", ");
+  const nW = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n];
+  const nC = nW[0].toUpperCase() + nW.slice(1);
+  const intro = kind === "row" ? `${nC} persons ${names.join(", ")} sit in a straight row, all facing north, not necessarily in the same order.` : kind === "floor" ? `${nC} persons ${names.join(", ")} live on different floors of a ${nW}-storey building. The bottom floor is numbered 1 and the top floor is numbered ${n}.` : `Seven persons ${names.join(", ")} attend a seminar on different days of the same week, from Monday to Sunday.`;
   const passage = `${intro}\n\n${clues.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`;
   const title = kind === "row" ? "Puzzle: Linear seating arrangement" : kind === "floor" ? "Puzzle: Floor arrangement" : "Puzzle: Weekly seminar schedule";
-  const sc = kind === "row" ? "For people facing north, their left is your left: number the seats 1 to 8 from the left and turn every clue into seat numbers." : kind === "floor" ? "Number floors from the bottom and treat 'above' and 'below' as larger and smaller numbers." : "Write the days as 1 to 7 and treat 'after' and 'before' as larger and smaller numbers.";
+  const sc = kind === "row" ? "For people facing north, their left is your left: number the seats 1 to ${n} from the left and turn every clue into seat numbers." : kind === "floor" ? "Number floors from the bottom and treat 'above' and 'below' as larger and smaller numbers." : "Write the days as 1 to 7 and treat 'after' and 'before' as larger and smaller numbers.";
   const tr = kind === "row" ? "Reading 'second to the left of' as 'two persons between'." : kind === "floor" ? "Confusing 'immediately above' with 'somewhere above'." : "Counting the two end persons when asked how many are between them.";
   const base = (q: string, d: Difficulty, line: string): Base => ({ section: "Reasoning", topic, variant: kind, difficulty: d, passageTitle: title, passage, question: q, explanation: ["Place the definite clues first (exact positions, ends, immediate neighbours), then test the remaining cases; exactly one arrangement satisfies every clue.", `Final arrangement, ${arrangement}.`, line], shortcut: sc, commonTrap: tr });
   const otherNames = (c: string): string[] => shuffle(r, names.filter((x: string) => x !== c));
@@ -622,7 +638,7 @@ function puzzleQs2(r: RNG, kind: PKind2, names: string[], topic: string): Questi
   const at = (pos: number): string => names[t.indexOf(kind === "circle" ? m(pos) : pos)];
   const order = Array.from({ length: n }, (_: unknown, p: number) => at(p));
   const arrangement = kind === "circle" ? `going clockwise (towards each person's left) from ${order[0]}: ${order.join(" → ")} → back to ${order[0]}` : kind === "box" ? `top to bottom: ${order.slice().reverse().join(", ")}` : order.map((x: string, p: number) => `${SLOTS[p]}: ${x}`).join(", ");
-  const intro = kind === "circle" ? `Eight persons ${names.join(", ")} are sitting around a circular table, all facing the centre, not necessarily in the same order.` : kind === "box" ? `Seven boxes ${names.join(", ")} are kept one above the other in a single stack, not necessarily in the same order. The bottom-most box is position 1 and the top-most box is position 7.` : `Six persons ${names.join(", ")} have meetings on six different dates — on the 7th and the 18th of March, April and May of the same year — not necessarily in the same order. Only one person has a meeting on each date.`;
+  const intro = kind === "circle" ? `${NUMW[names.length]} persons ${names.join(", ")} are sitting around a circular table, all facing the centre, not necessarily in the same order.` : kind === "box" ? `${["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine"][names.length]} boxes ${names.join(", ")} are kept one above the other in a single stack, not necessarily in the same order. The bottom-most box is position 1 and the top-most box is position ${names.length}.` : `Six persons ${names.join(", ")} have meetings on six different dates — on the 7th and the 18th of March, April and May of the same year — not necessarily in the same order. Only one person has a meeting on each date.`;
   const passage = `${intro}\n\n${clues.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}`;
   const title = kind === "circle" ? "Puzzle: Circular seating (facing centre)" : kind === "box" ? "Puzzle: Box stack" : "Puzzle: Month and date schedule";
   const sc = kind === "circle" ? "Facing the centre, a person's LEFT is clockwise and RIGHT is anticlockwise. Fix one person at the top and place everyone else relative to them." : kind === "box" ? "Draw positions 1 (bottom) to 7 (top); fix the definite positions first, then 'immediately above' pairs." : "Draw a 6-row table: Mar 7, Mar 18, Apr 7, Apr 18, May 7, May 18. March and May have 31 days, April has 30.";
@@ -839,41 +855,80 @@ function bloodQ(r: RNG, k: number): Question {
   return finalize(r, RB("Blood Relation", "Moderate", tpl.q, tpl.e, "Draw a quick family tree with + for male and − for female; decode 'only son' first.", "Assuming a gender that the question never states, or treating 'only son' as a different person."), tpl.a, shuffle(r, RELS.filter((x: string) => x !== tpl.a)));
 }
 const PUZZLE_KINDS = ["row", "floor", "week", "circle", "box", "month"];
-function buildReasoning(r: RNG, kinds: string[]): Question[] {
+function classicSize(kind: string, level: PaperLevel): number {
+  if (kind === "month") return 6;
+  if (kind === "week") return 7;
+  if (kind === "circle") return 8;
+  if (level === "Easy") {
+    if (kind === "row") return 8;
+    if (kind === "floor") return 7;
+    if (kind === "box") return 7;
+    return 8;
+  }
+  if (kind === "row") return 9;
+  if (kind === "floor") return 8;
+  if (kind === "box") return 8;
+  return 8;
+}
+function buildReasoning(r: RNG, kinds: string[], level: PaperLevel = "Moderate"): Question[] {
   const letters = shuffle(r, "ABCDEFGHJKLMNPQRSTUVWXYZ".split(""));
   const pool = shuffle(r, NAMES);
   let li = 0, pi = 0;
   const L = (k: number): string[] => { const x = letters.slice(li, li + k).sort(); li += k; if (li > 16) li = 0; return x; };
   const P = (k: number): string[] => { const x = pool.slice(pi, pi + k).sort(); pi += k; if (pi > 16) pi = 0; return x; };
+  const people = new Set(["floorflat", "uncertain", "dualrow", "compare2", "floor", "week", "month"]);
   const puzzle = (kind: string): Question[] => {
-    if (kind === "row") return puzzleQs(r, "row", L(8), "Linear Seating");
-    if (kind === "floor") return puzzleQs(r, "floor", P(7), "Floor Puzzle");
-    if (kind === "week") return puzzleQs(r, "week", P(7), "Scheduling Puzzle");
-    if (kind === "circle") return puzzleQs2(r, "circle", L(8), "Circular Seating");
-    if (kind === "box") return puzzleQs2(r, "box", L(7), "Box Stack Puzzle");
+    const nAdv = adv.nameCount[kind];
+    if (nAdv) {
+      const names = people.has(kind) ? P(nAdv) : L(nAdv);
+      return adv.buildPuzzle(r, kind, names) || [];
+    }
+    const n = classicSize(kind, level);
+    if (kind === "row") return puzzleQs(r, "row", L(n), "Linear Seating");
+    if (kind === "floor") return puzzleQs(r, "floor", P(n), "Floor Puzzle");
+    if (kind === "week") return puzzleQs(r, "week", P(n), "Scheduling Puzzle");
+    if (kind === "circle") return puzzleQs2(r, "circle", L(n), "Circular Seating");
+    if (kind === "box") return puzzleQs2(r, "box", L(n), "Box Stack Puzzle");
     return puzzleQs2(r, "month", P(6), "Month-Date Puzzle");
   };
   const pz = kinds.map(puzzle);
-  const misc = (() => { const bi = ri(r, 0, 6); const dn = shuffle(r, NAMES).slice(0, 2); return [bloodQ(r, bi), bloodQ(r, bi + ri(r, 1, 6)), ...directionQs(r, dn), pick(r, codingQs(r))]; })();
-  return [...ineqQs(r), ...pz[0], ...sylQs(r), ...pz[1], ...alphaQs(r), ...pz[2], ...misc, ...pz[3]];
+  const dn = shuffle(r, NAMES).slice(0, 2);
+  if (level === "Easy") {
+    const bi = ri(r, 0, 6);
+    const misc = [bloodQ(r, bi), bloodQ(r, bi + ri(r, 1, 6)), ...directionQs(r, dn), pick(r, codingQs(r))];
+    return [...ineqQs(r), ...pz[0], ...sylQs(r), ...pz[1], ...alphaQs(r), ...pz[2], ...misc, ...pz[3]];
+  }
+  const miscAll = adv.buildMisc(r, level, dn);
+  return [...miscAll.slice(0, 5), ...pz[0], ...miscAll.slice(5, 10), ...pz[1], ...miscAll.slice(10, 15), ...pz[2], ...miscAll.slice(15), ...pz[3]];
 }
 
 /** Daily shifts (1–3) rotate puzzle engines and DI types deterministically from the date; fresh tests (4+) pick from their own seed. */
-function paperPlan(dateKey: string, testNo: number, dayHash: number): { kinds: string[]; diType: string } {
-  const seed = hashStr(`${dateKey}#${testNo}`);
+function paperPlan(dateKey: string, testNo: number, dayHash: number, level: PaperLevel = "Moderate"): { kinds: string[]; diType: string } {
+  const seed = hashStr(`${dateKey}#${testNo}#${level}`);
   const r = mulberry32(seed ^ 0x5151);
+  const pool = level === "Easy" ? PUZZLE_KINDS : level === "Hard" ? HARD_PUZZLE_KINDS : MOD_PUZZLE_KINDS;
+  const ADV = ["floorflat", "dualrow", "boxcolor"];
+  const diType = testNo <= 3
+    ? DI_TYPES[(((Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000) * 3 + testNo - 1) % 4) + 4) % 4]
+    : pick(r, DI_TYPES);
+  const dayOrder = shuffle(mulberry32(dayHash ^ hashStr(level) ^ 0x777), pool.slice());
+  let kinds: string[];
   if (testNo <= 3) {
-    const dayOrder = shuffle(mulberry32(dayHash ^ 0x777), PUZZLE_KINDS);
-    const kinds = [0, 1, 2, 3].map((k: number) => dayOrder[(2 * (testNo - 1) + k) % 6]);
-    const dayIdx = Math.floor(Date.parse(`${dateKey}T00:00:00Z`) / 86400000);
-    return { kinds: shuffle(r, kinds), diType: DI_TYPES[(((dayIdx * 3 + testNo - 1) % 4) + 4) % 4] };
+    kinds = [0, 1, 2, 3].map((k: number) => dayOrder[(k + (testNo - 1) * 2) % dayOrder.length]);
+    const uniq: string[] = [];
+    kinds.forEach((k) => { if (!uniq.includes(k)) uniq.push(k); });
+    dayOrder.forEach((k) => { if (uniq.length < 4 && !uniq.includes(k)) uniq.push(k); });
+    kinds = uniq.slice(0, 4);
+  } else {
+    kinds = shuffle(r, pool.slice()).slice(0, 4);
   }
-  return { kinds: shuffle(r, PUZZLE_KINDS).slice(0, 4), diType: pick(r, DI_TYPES) };
+  if (level === "Moderate" && !kinds.some((k) => ADV.includes(k))) kinds[3] = pick(r, ADV);
+  return { kinds: testNo <= 3 ? shuffle(r, kinds) : kinds, diType };
 }
-function generatePaper(dateKey: string, testNo: number, dayHash: number): Question[] {
-  const seed = hashStr(`${dateKey}#${testNo}`);
-  const plan = paperPlan(dateKey, testNo, dayHash);
-  return [...buildReasoning(mulberry32(seed ^ 0x3333), plan.kinds), ...buildNumerical(mulberry32(seed ^ 0x2222), plan.diType)];
+function generatePaper(dateKey: string, testNo: number, dayHash: number, level: PaperLevel = "Moderate"): Question[] {
+  const seed = hashStr(`${dateKey}#${testNo}#${level}`);
+  const plan = paperPlan(dateKey, testNo, dayHash, level);
+  return [...buildReasoning(mulberry32(seed ^ 0x3333), plan.kinds, level), ...buildNumerical(mulberry32(seed ^ 0x2222), plan.diType, level)];
 }
 
 // ================= analysis =================
@@ -908,5 +963,13 @@ function quadOf(g: GroupStat): Quad | null {
 const QUAD_TONE: Record<Quad, Tone> = { "Fast & Accurate": "success", "Slow & Accurate": "warning", "Fast & Guessy": "danger", "Time Sink": "danger" };
 
 
-export { generatePaper, paperPlan, spaceOf, PUZZLE_KINDS, DI_TYPES, SEC_TIME, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TARGET, SEC_LIMIT, LETTERS, SHIFTS, shiftName, groupBy, netOf, accOf, fmtNum, fmtClock, fmtDur, estPercentile, quadOf, hashStr, getPerms };
-export type { Question, SectionKey, Difficulty, DataTable, QR, GroupStat, Quad, QStatus, Tone, Clue, PKind };
+
+adv = createAdvanced({
+  ri, pick, shuffle, gcd, lcm, fmtNum, rs, pctFmt, ordN, stepOf, ratioStr, finalize, nearNums, mkN, NB, RB,
+  getPerms, PUZZLE_LOG, NAMES, LETTERS, ORD, NUMW, DAYS, MALES, FEMALES, FILLERS,
+  ineqQs, sylQs, alphaQs, codingQs, directionQs, bloodQ, diQs, diLine, diPie, diCaselet,
+  seriesMissing, seriesWrong, quadQ, SIMP, APPROX, SERIES, ARITH,
+});
+
+export { generatePaper, paperPlan, spaceOf, PUZZLE_KINDS, MOD_PUZZLE_KINDS, HARD_PUZZLE_KINDS, DI_TYPES, SEC_TIME, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TARGET, SEC_LIMIT, LETTERS, SHIFTS, shiftName, groupBy, netOf, accOf, fmtNum, fmtClock, fmtDur, estPercentile, quadOf, hashStr, getPerms, PAPER_LEVELS, LEVEL_LABEL, LEVEL_BLURB };
+export type { Question, SectionKey, Difficulty, PaperLevel, DataTable, QR, GroupStat, Quad, QStatus, Tone, Clue, PKind, RNG, Base };

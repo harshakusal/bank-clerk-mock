@@ -1,4 +1,4 @@
-import type { SectionKey } from './gen/engine';
+import type { SectionKey, PaperLevel } from './gen/engine';
 import type { TopicStat } from './analysis';
 
 export interface HistoryEntry {
@@ -10,6 +10,7 @@ export interface HistoryEntry {
   mode: 'strict' | 'free';
   exam?: 'rrb-clerk'; // missing on legacy (100-mark) attempts
   maxMarks?: number;
+  level?: PaperLevel;
   net: number;
   correct: number;
   wrong: number;
@@ -71,8 +72,8 @@ export function importHistoryJSON(text: string): number {
   return fresh.length;
 }
 
-export interface Prefs { name: string; mode: 'strict' | 'free'; fontScale?: number }
-export const loadPrefs = (): Prefs => ({ name: '', mode: 'strict', fontScale: 1, ...safeGet<Partial<Prefs>>(PKEY, {}) });
+export interface Prefs { name: string; mode: 'strict' | 'free'; fontScale?: number; level?: PaperLevel }
+export const loadPrefs = (): Prefs => ({ name: '', mode: 'strict', fontScale: 1, level: 'Moderate', ...safeGet<Partial<Prefs>>(PKEY, {}) });
 export const savePrefs = (p: Prefs) => safeSet(PKEY, p);
 
 export function nextFreshTestNo(dateKey: string): number {

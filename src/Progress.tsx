@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { SEC_TARGET, fmtNum, type SectionKey } from './gen/engine';
-import { tipFor, OVERALL_BAND, MAX_MARKS, type TopicStat } from './analysis';
+import { SEC_TARGET, fmtNum, PAPER_LEVELS, type SectionKey, type PaperLevel } from './gen/engine';
+import { tipFor, bandOf, MAX_MARKS, type TopicStat } from './analysis';
 import { dailyStreak, exportHistoryJSON, importHistoryJSON, isRRB, type HistoryEntry } from './storage';
 import { TrendChart, Bar } from './ui';
 
@@ -47,8 +47,10 @@ function buildMastery(hist: HistoryEntry[]): Mastery[] {
 }
 
 export default function Progress({ history, onBack, onChanged, onClear }: { history: HistoryEntry[]; onBack: () => void; onChanged: () => void; onClear: () => void }) {
-  const rrb = useMemo(() => history.filter(isRRB), [history]);
-  const legacy = history.length - rrb.length;
+  const rrbAll = useMemo(() => history.filter(isRRB), [history]);
+  const [levelF, setLevelF] = useState<'all' | PaperLevel>('all');
+  const rrb = useMemo(() => levelF === 'all' ? rrbAll : rrbAll.filter((h) => (h.level || 'Moderate') === levelF), [rrbAll, levelF]);
+  const legacy = history.length - rrbAll.length;
   const mastery = useMemo(() => buildMastery(rrb), [rrb]);
   const [secF, setSecF] = useState<'all' | SectionKey>('all');
   const [msg, setMsg] = useState('');
@@ -59,7 +61,8 @@ export default function Progress({ history, onBack, onChanged, onClear }: { hist
   const avgAcc = rrb.length ? rrb.reduce((a, h) => a + h.accuracy, 0) / rrb.length : 0;
   const streak = dailyStreak(history);
   const last = rrb.slice(-20);
-  const points = last.map((h) => ({ label: `${h.dateKey.slice(5)} ${h.testNo <= 3 ? 'S' + h.testNo : 'F'}`, score: Math.round(h.net * 100) / 100, acc: Math.round(h.accuracy) }));
+  const points = last.map((h) => ({ label: `${h.dateKey.slice(5)} ${h.testNo <= 3 ? 'S' + h.testNo : 'F'}${(h.level || 'Moderate')[0]}`, score: Math.round(h.net * 100) / 100, acc: Math.round(h.accuracy) }));
+  const band = bandOf(levelF === 'all' ? 'Moderate' : levelF);
   const rows = mastery.filter((m) => secF === 'all' || m.section === secF);
   const focus = mastery.filter((m) => m.tag === 'Focus Next');
 
@@ -101,6 +104,10 @@ export default function Progress({ history, onBack, onChanged, onClear }: { hist
           </div>
         </div>
         {msg && <div className="flash inline">{msg}</div>}
+        <div className="seg level-filter" role="group" aria-label="Filter by difficulty">
+          <button className={levelF === 'all' ? 'on' : ''} onClick={() => setLevelF('all')}>All levels</button>
+          {PAPER_LEVELS.map((lv) => <button key={lv} className={levelF === lv ? 'on' : ''} onClick={() => setLevelF(lv)}>{lv}</button>)}
+        </div>
         <div className="kpis wide">
           <div className="kpi"><b>{rrb.length}</b><span>mocks completed</span></div>
           <div className="kpi"><b>{rrb.length ? fmtNum(best) : '–'}</b><span>personal best /80</span></div>
@@ -116,8 +123,8 @@ export default function Progress({ history, onBack, onChanged, onClear }: { hist
         <h2>Score &amp; accuracy trend</h2>
         {points.length ? (
           <>
-            <TrendChart points={points} max={MAX_MARKS} band={[OVERALL_BAND.low, OVERALL_BAND.high]} />
-            <div className="legend small"><span><i style={{ background: '#1f6fd1' }} />Net score (/80)</span><span><i style={{ background: '#e4572e' }} />Accuracy %</span><span><i style={{ background: '#fde68a' }} />Borderline band 64–71</span></div>
+            <TrendChart points={points} max={MAX_MARKS} band={[band.low, band.high]} />
+            <div className="legend small"><span><i style={{ background: '#1f6fd1' }} />Net score (/80)</span><span><i style={{ background: '#e4572e' }} />Accuracy %</span><span><i style={{ background: '#fde68a' }} />{levelF === 'all' ? 'Moderate' : levelF} band {band.low}–{band.high}{band.approx ? ' (approx.)' : ''}</span></div>
           </>
         ) : <p className="muted">Complete your first RRB Clerk mock to see your trend.</p>}
       </section>
@@ -165,12 +172,13 @@ export default function Progress({ history, onBack, onChanged, onClear }: { hist
         {history.length === 0 ? <p className="muted">No attempts saved yet.</p> : (
           <div className="table-scroll">
             <table className="std-table">
-              <thead><tr><th>Date</th><th>Test</th><th>Mode</th><th>Net</th><th>Reasoning</th><th>Quant</th><th>Accuracy</th><th>Attempted</th><th>Weak topics</th></tr></thead>
+              <thead><tr><th>Date</th><th>Test</th><th>Difficulty</th><th>Mode</th><th>Net</th><th>Reasoning</th><th>Quant</th><th>Accuracy</th><th>Attempted</th><th>Weak topics</th></tr></thead>
               <tbody>
-                {history.slice().reverse().map((h) => (
+                {(levelF === 'all' ? history : history.filter((h) => !isRRB(h) || (h.level || 'Moderate') === levelF)).slice().reverse().map((h) => (
                   <tr key={h.id} className={isRRB(h) ? '' : 'legacy'}>
                     <td>{new Date(h.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                     <td>{h.label}{isRRB(h) ? '' : ' (legacy 100-mark)'}</td>
+                    <td>{isRRB(h) ? <span className={`level-tag ${(h.level || 'Moderate').toLowerCase()}`}>{h.level || 'Moderate'}</span> : '—'}</td>
                     <td>{h.mode === 'strict' ? 'Strict' : 'Practice'}</td>
                     <td><b>{fmtNum(h.net)}</b>/{h.maxMarks || 100}</td>
                     <td>{h.sections.Reasoning ? fmtNum(h.sections.Reasoning.net) : '—'}</td>

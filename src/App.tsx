@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { generatePaper, hashStr, shiftName, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TIME, fmtNum, type Question, type SectionKey } from './gen/engine';
+import { generatePaper, hashStr, shiftName, SECTION_ORDER, SECTION_LABEL, FULL_COUNT, SEC_TIME, fmtNum, PAPER_LEVELS, LEVEL_LABEL, LEVEL_BLURB, type Question, type SectionKey, type PaperLevel } from './gen/engine';
 import { loadHistory, loadPrefs, savePrefs, nextFreshTestNo, todayKey, clearHistory, dailyStreak, isRRB, type HistoryEntry, type Prefs } from './storage';
 import Progress from './Progress';
 import { Sparkline } from './ui';
@@ -12,6 +12,7 @@ export interface Paper {
   label: string;
   mode: 'strict' | 'free';
   questions: Question[];
+  level?: PaperLevel;
   drill?: boolean;
 }
 
@@ -23,9 +24,9 @@ const SHIFT_INFO = [
   { icon: '🌆', time: '5:00 PM slot' },
 ];
 
-export function makePaper(dateKey: string, testNo: number, mode: 'strict' | 'free'): Paper {
+export function makePaper(dateKey: string, testNo: number, mode: 'strict' | 'free', level: PaperLevel = 'Moderate'): Paper {
   const label = testNo <= 3 ? `Daily Mock ${testNo} · ${shiftName(testNo)} ${testNo}` : `Fresh Mock #${testNo - 3}`;
-  return { dateKey, testNo, label, mode, questions: generatePaper(dateKey, testNo, hashStr(dateKey)) };
+  return { dateKey, testNo, label, mode, level, questions: generatePaper(dateKey, testNo, hashStr(dateKey), level) };
 }
 
 export default function App() {
@@ -48,8 +49,9 @@ export default function App() {
     setPhase(p.drill ? 'exam' : 'instructions');
     window.scrollTo(0, 0);
   };
-  const startDaily = (n: number) => start(makePaper(today, n, prefs.mode));
-  const startFresh = () => start(makePaper(today, nextFreshTestNo(today), prefs.mode));
+  const level: PaperLevel = prefs.level || 'Moderate';
+  const startDaily = (n: number) => start(makePaper(today, n, prefs.mode, level));
+  const startFresh = () => start(makePaper(today, nextFreshTestNo(today), prefs.mode, level));
 
   const onFinish = (o: ExamOutcome) => {
     setOutcome(o);
@@ -58,7 +60,7 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const todayDone = (n: number) => history.filter((h) => isRRB(h) && h.dateKey === today && h.testNo === n).slice(-1)[0];
+  const todayDone = (n: number) => history.filter((h) => isRRB(h) && h.dateKey === today && h.testNo === n && (h.level || 'Moderate') === (prefs.level || 'Moderate')).slice(-1)[0];
   const nextDaily = [1, 2, 3].find((n) => !todayDone(n));
 
   if (phase === 'exam' && paper) return <Exam paper={paper} candidate={prefs.name || 'Candidate'} fontScale={prefs.fontScale || 1} setFontScale={(f) => updatePrefs({ fontScale: f })} onFinish={onFinish} onQuit={() => setPhase('dashboard')} />;
@@ -139,7 +141,7 @@ function Dashboard(props: {
       <section className="hero card">
         <div>
           <h1>Today's RRB Clerk Prelims Mocks</h1>
-          <p className="muted">{dateLabel} · 3 brand-new full-length papers every day — new puzzles (6 engines), new DI type and fresh numbers for every shift and every fresh test</p>
+          <p className="muted">{dateLabel} · 3 brand-new full-length papers every day — pick Easy, Moderate (real-exam level) or Hard, then start a shift. Each difficulty is a different paper.</p>
           <div className="pattern-row three">
             <div className="pat"><b>Reasoning Ability</b><span>40 Qs · 40 marks · 25 min</span></div>
             <div className="pat"><b>Numerical Ability</b><span>40 Qs · 40 marks · 20 min</span></div>
@@ -166,6 +168,22 @@ function Dashboard(props: {
               : 'One 45:00 timer for the whole paper; switch between sections freely.'}
           </small>
         </div>
+        <div className="field level-field">
+          <span>Difficulty</span>
+          <div className="level-picker" role="group" aria-label="Paper difficulty">
+            {PAPER_LEVELS.map((lv) => (
+              <button
+                key={lv}
+                type="button"
+                className={`level-card ${lv.toLowerCase()} ${(prefs.level || 'Moderate') === lv ? 'on' : ''}`}
+                onClick={() => updatePrefs({ level: lv })}
+              >
+                <span className="lvl">{LEVEL_LABEL[lv]}{lv === 'Moderate' ? ' · default' : ''}</span>
+                <span className="blurb">{LEVEL_BLURB[lv]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="shift-grid">
@@ -182,7 +200,7 @@ function Dashboard(props: {
               </div>
               {done ? (
                 <div className="shift-score">
-                  <span className="big">{fmtNum(done.net)}</span>/100 · {fmtNum(done.accuracy)}% accuracy
+                  <span className="big">{fmtNum(done.net)}</span>/{done.maxMarks || 80} · {fmtNum(done.accuracy)}% accuracy
                 </div>
               ) : (
                 <div className="shift-score muted">Not attempted yet</div>
@@ -196,7 +214,7 @@ function Dashboard(props: {
             <span className="shift-icon">⚡</span>
             <div>
               <div className="shift-name">Generate Fresh Test</div>
-              <div className="small muted">Unlimited new 100-question papers</div>
+              <div className="small muted">Unlimited new 80-question papers at the selected difficulty</div>
             </div>
           </div>
           <div className="shift-score muted">New puzzles, new DI, new numbers every time</div>
@@ -237,7 +255,7 @@ function Instructions({ paper, agree, setAgree, name, onBack, onBegin }: { paper
     <main className="container">
       <section className="card instr">
         <h2>IBPS RRB Clerk Prelims — General Instructions · {paper.label}</h2>
-        <p className="muted small">Please read the following instructions carefully. Candidate: <b>{name || 'Candidate'}</b> · Paper date: {paper.dateKey}</p>
+        <p className="muted small">Please read the following instructions carefully. Candidate: <b>{name || 'Candidate'}</b> · Paper date: {paper.dateKey} · Difficulty: <b>{paper.level || 'Moderate'}</b></p>
         <table className="std-table">
           <thead><tr><th>S.No.</th><th>Name of Test</th><th>No. of Qs</th><th>Max. Marks</th><th>Duration</th></tr></thead>
           <tbody>
@@ -250,6 +268,7 @@ function Instructions({ paper, agree, setAgree, name, onBack, onBegin }: { paper
         <ol className="instr-list">
           <li>{strict ? 'Reasoning Ability (25 minutes) comes first, followed by Numerical Ability (20 minutes). Each section has its own timer; you cannot move to Numerical Ability before the Reasoning timer ends unless you submit the section, and you cannot return to a submitted section.' : 'Practice mode: a single 45-minute timer runs for the whole paper and you may switch between sections at any time.'}</li>
           <li>The countdown timer at the top right shows the time remaining. It turns <b className="amber">amber</b> below 5 minutes and <b className="red">red</b> below 3 minutes. When the timer reaches zero, the {strict ? 'section is submitted automatically' : 'test is submitted automatically'}.</li>
+          <li>This paper is set at <b>{paper.level || 'Moderate'}</b> difficulty. Moderate matches recent IBPS RRB / IBPS Clerk Prelims; Hard is intentionally tougher than the real exam.</li>
           <li>There is negative marking: <b>0.25 mark</b> is deducted for every wrong answer. Unattempted questions carry no penalty.</li>
           <li>The Question Palette on the right shows the status of each question:
             <div className="legend-grid">

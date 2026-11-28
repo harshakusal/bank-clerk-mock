@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { SECTION_LABEL, LETTERS, SEC_TARGET, netOf, accOf, fmtNum, fmtDur, type Question, type SectionKey, type QR } from './gen/engine';
-import { buildInsights, readiness, SECTION_CUTOFF, tipFor } from './analysis';
+import { buildInsights, readiness, SECTION_CUTOFF, tipFor, bandOf } from './analysis';
 import { isRRB, type HistoryEntry } from './storage';
 import type { Paper } from './App';
 import type { ExamOutcome } from './Exam';
@@ -32,7 +32,9 @@ export default function Report(props: {
   const [sf, setSf] = useState<SF>('all');
   const [secF, setSecF] = useState<'all' | SectionKey>('all');
   const [open, setOpen] = useState<Record<number, boolean>>({});
-  const ready = readiness(res.net, res.total);
+  const level = paper.level || 'Moderate';
+  const band = bandOf(level);
+  const ready = readiness(res.net, res.total, level);
   const retryQs = res.rows.filter((r) => r.status !== 'correct').map((r) => r.q);
   const fullPaper = res.total === 80 && !paper.drill;
 
@@ -48,7 +50,7 @@ export default function Report(props: {
           <div className="logo">RRB</div>
           <div>
             <div className="brand-title">IBPS RRB Clerk Prelims — Score Card &amp; Performance Analysis</div>
-            <div className="brand-sub">{paper.label} · {paper.dateKey} · {candidate}</div>
+            <div className="brand-sub">{paper.label} · {paper.dateKey} · <span className={`level-tag ${level.toLowerCase()}`}>{level}</span> · {candidate}</div>
           </div>
         </div>
       </header>
@@ -61,7 +63,7 @@ export default function Report(props: {
             </div>
           </div>
           <div className="score-info">
-            <h1>{res.net / res.total >= 71 / 80 ? 'Excellent attempt — Safe Zone!' : res.net / res.total >= 64 / 80 ? 'Good effort — you are in the borderline band' : 'Keep going — here is exactly what to fix'}</h1>
+            <h1>{res.net / res.total >= band.high / 80 ? 'Excellent attempt — Safe Zone!' : res.net / res.total >= band.low / 80 ? 'Good effort — you are in the borderline band' : 'Keep going — here is exactly what to fix'}</h1>
             {fullPaper ? <div className={`verdict ${ready.tone}`}>{ready.label}</div> : <div className="verdict warn">Retry drill — not saved to history</div>}
             <div className="metrics">
               <M k="Accuracy" v={`${fmtNum(Math.round(res.accuracy * 10) / 10)}%`} />
@@ -188,8 +190,8 @@ export default function Report(props: {
         {trend.length > 1 && (
           <section className="card">
             <h2>📈 Score trend (last {trend.length} tests)</h2>
-            <Sparkline values={trend} max={80} cutoff={71} />
-            <div className="small muted">Dashed line = 71/80 (RRB Clerk Safe Zone); 64–70.75 is the borderline band.</div>
+            <Sparkline values={trend} max={80} cutoff={band.high} />
+            <div className="small muted">Dashed line = {band.high}/80 Safe Zone for {level}{band.approx ? ' (approximate — Hard is tougher than the actual Prelims)' : ''}; {band.low}–{band.high - 0.25} is the borderline band.</div>
           </section>
         )}
 

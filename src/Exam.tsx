@@ -136,6 +136,7 @@ export default function Exam({ paper, candidate, fontScale, setFontScale, onFini
         mode: paper.mode,
         exam: 'rrb-clerk',
         maxMarks: qs.length,
+        level: paper.level || 'Moderate',
         topicStats: topicStatsOf(result),
         net: result.net,
         correct: result.correct,
@@ -267,7 +268,7 @@ export default function Exam({ paper, candidate, fontScale, setFontScale, onFini
           <div className="logo sm">RRB</div>
           <div>
             <div className="eh-title">{paper.drill ? paper.label : `IBPS RRB Clerk Prelims · ${paper.label}`}</div>
-            <div className="eh-sub">{paper.dateKey} · {strict ? 'Strict Real Exam Mode' : paper.drill ? 'Retry Drill (untimed sections)' : 'Practice / Free Switch Mode'}</div>
+            <div className="eh-sub">{paper.dateKey} · <span className={`level-tag ${(paper.level || 'Moderate').toLowerCase()}`}>{paper.level || 'Moderate'}</span> · {strict ? 'Strict Real Exam Mode' : paper.drill ? 'Retry Drill (untimed sections)' : 'Practice / Free Switch Mode'}</div>
           </div>
         </div>
         <div className="eh-right">

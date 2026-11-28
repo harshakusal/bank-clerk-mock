@@ -1,4 +1,4 @@
-import { SECTION_ORDER, SECTION_LABEL, SEC_TARGET, groupBy, netOf, accOf, estPercentile, quadOf, fmtNum, type Question, type QR, type GroupStat, type SectionKey, type Quad } from './gen/engine';
+import { SECTION_ORDER, SECTION_LABEL, SEC_TARGET, groupBy, netOf, accOf, estPercentile, quadOf, fmtNum, type Question, type QR, type GroupStat, type SectionKey, type Quad, type PaperLevel } from './gen/engine';
 
 export interface ExamResult {
   rows: QR[];
@@ -42,12 +42,32 @@ export function computeResults(qs: Question[], answers: (number | null)[], times
 export const SECTION_CUTOFF: Record<SectionKey, number> = { Reasoning: 14, Numerical: 10 };
 export const MAX_MARKS = 80;
 export const OVERALL_BAND = { low: 64, high: 71 };
+export const LEVEL_BAND: Record<PaperLevel, { low: number; high: number; approx?: boolean }> = {
+  Easy: { low: 68, high: 74 },
+  Moderate: { low: 64, high: 71 },
+  Hard: { low: 54, high: 62, approx: true },
+};
+export function bandOf(level?: PaperLevel) {
+  return LEVEL_BAND[level || 'Moderate'];
+}
 
-export function readiness(net: number, total: number) {
+export function readiness(net: number, total: number, level?: PaperLevel) {
   const scaled = (net / total) * MAX_MARKS;
-  if (scaled >= OVERALL_BAND.high) return { label: `Safe Zone: ${fmtNum(scaled)}/80 — at or above 71, comfortably clear of recent RRB Clerk cut-offs`, tone: 'good' as const };
-  if (scaled >= OVERALL_BAND.low) return { label: `Borderline (64–70.75): ${fmtNum(scaled)}/80 — push ${fmtNum(OVERALL_BAND.high - scaled)} more marks for the Safe Zone`, tone: 'warn' as const };
-  return { label: `Needs Speed & Accuracy Work: ${fmtNum(scaled)}/80 — need +${fmtNum(OVERALL_BAND.low - scaled)} to reach the 64 borderline`, tone: 'bad' as const };
+  const band = bandOf(level);
+  const approx = band.approx ? ' (approximate — this Hard paper is tougher than the actual Prelims)' : '';
+  const highNote = level === 'Easy'
+    ? `at or above ${band.high}, a strong score on a gentler paper`
+    : level === 'Hard'
+      ? `at or above ${band.high} on a paper tougher than the real Prelims`
+      : `at or above ${band.high}, comfortably clear of recent RRB Clerk cut-offs`;
+  const midNote = level === 'Easy'
+    ? `${band.low}–${band.high - 0.25}`
+    : level === 'Hard'
+      ? `${band.low}–${band.high - 0.25}`
+      : '64–70.75';
+  if (scaled >= band.high) return { label: `Safe Zone: ${fmtNum(scaled)}/80 — ${highNote}${approx}`, tone: 'good' as const };
+  if (scaled >= band.low) return { label: `Borderline (${midNote}): ${fmtNum(scaled)}/80 — push ${fmtNum(band.high - scaled)} more marks for the Safe Zone${approx}`, tone: 'warn' as const };
+  return { label: `Needs Speed & Accuracy Work: ${fmtNum(scaled)}/80 — need +${fmtNum(band.low - scaled)} to reach the ${band.low} borderline${approx}`, tone: 'bad' as const };
 }
 
 export interface TopicStat { topic: string; section: SectionKey; total: number; attempted: number; correct: number; wrong: number; timeSec: number }
@@ -80,10 +100,13 @@ const TOPIC_TIPS: Record<string, string> = {
   'Alphanumeric Series': 'Convert “from the right” using (N + 1 − k); tick matches in one left-to-right scan.',
   'Blood Relation': 'Draw a family tree with gender symbols; decode “only son/daughter” first.',
   'Direction Sense': 'Track (x, y) after every leg; right = clockwise turn.',
-  'Circular Seating': 'Facing the centre: left = clockwise. Fix one person, then place the rest with opposite/neighbour clues.',
-  'Box Stack Puzzle': 'Number positions 1 (bottom) to 7 (top); “k boxes above X” fixes X at position 7 − k.',
+  'Circular Seating': 'Facing the centre: left = clockwise. Facing out: left is anticlockwise. Fix one person, then place the rest with opposite/neighbour clues.',
+  'Box Stack Puzzle': 'Number positions 1 (bottom) to n (top); “k boxes above X” fixes X at position n − k. Colour is a second variable — fill a 2-column grid.',
   'Month-Date Puzzle': 'Draw Mar 7 / Mar 18 / Apr 7 / Apr 18 / May 7 / May 18; April is the only 30-day month.',
-  'Coding-Decoding': 'Check letter shifts of the first two letters; memorise EJOTY positions.',
+  'Coding-Decoding': 'Check letter shifts of the first two letters; for sentence (Chinese) coding, find the unique leftover code by comparing shared words.',
+  'Floor-Flat Puzzle': 'Draw 4 floors × 2 flats (A left of B). Treat floor and flat as two columns and fix definite floor+flat clues first.',
+  'Comparison Puzzle': 'Write two rank lines (height and weight). Convert “only two are taller” into a definite rank.',
+  'Quantity Comparison': 'Evaluate both quantities fully before comparing; do not stop at a first-step figure.',
 };
 export const tipFor = (topic: string) => TOPIC_TIPS[topic] || 'Revise the concept and practise 15 timed questions.';
 
